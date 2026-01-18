@@ -5,6 +5,10 @@ import type {
 	OpenApiDoc,
 } from "./types.ts";
 
+function operationKey(method: string, path: string): string {
+	return `${method.toUpperCase()} ${path}`;
+}
+
 const HTTP_METHODS = [
 	"get",
 	"post",
@@ -35,7 +39,7 @@ type RawOperation = {
 	summary?: string;
 	description?: string;
 	deprecated?: boolean;
-	security?: unknown;
+	security?: OpenApiDoc["security"];
 	parameters?: RawParameter[];
 	requestBody?: RawRequestBody;
 };
@@ -122,15 +126,17 @@ export function indexOperations(doc: OpenApiDoc): NormalizedOperation[] {
 			if (!op) continue;
 
 			const parameters = mergeParameters(pathItem.parameters, op.parameters);
+			const normalizedMethod = method.toUpperCase();
 			out.push({
-				method: method.toUpperCase(),
+				key: operationKey(normalizedMethod, path),
+				method: normalizedMethod,
 				path,
 				operationId: op.operationId,
 				tags: op.tags ?? [],
 				summary: op.summary,
 				description: op.description,
 				deprecated: op.deprecated,
-				security: op.security,
+				security: (op.security ?? doc.security) as OpenApiDoc["security"],
 				parameters,
 				requestBody: normalizeRequestBody(op.requestBody),
 			});

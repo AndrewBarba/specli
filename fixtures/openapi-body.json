@@ -1,0 +1,41 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Body API",
+		"version": "1.0.0"
+	},
+	"servers": [{ "url": "https://api.example.com" }],
+	"paths": {
+		"/contacts": {
+			"post": {
+				"operationId": "Contacts.Create",
+				"tags": ["Contacts"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string" }
+								},
+								"required": ["name"]
+							}
+						},
+						"application/x-www-form-urlencoded": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": { "description": "OK" }
+				}
+			}
+		}
+	}
+}

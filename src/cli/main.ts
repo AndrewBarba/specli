@@ -1,10 +1,11 @@
 import { Command } from "commander";
 
 import { listAuthSchemes } from "./auth-schemes.ts";
+import { deriveCapabilities } from "./capabilities.ts";
 import { buildCommandModel } from "./command-model.ts";
 import { planOperations } from "./naming.ts";
 import { indexOperations } from "./operations.ts";
-import { buildSchemaOutput } from "./schema.ts";
+import { buildSchemaOutput, toMinimalSchemaOutput } from "./schema.ts";
 import { listServers } from "./server.ts";
 import { loadSpec } from "./spec-loader.ts";
 
@@ -28,11 +29,13 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.command("__schema")
 		.description("Print indexed operations (machine-readable when --json)")
 		.option("--pretty", "Pretty-print JSON when used with --json")
+		.option("--min", "Minimal JSON output (commands + metadata only)")
 		.action(async (_opts, command) => {
 			const flags = command.optsWithGlobals() as {
 				spec?: string;
 				json?: boolean;
 				pretty?: boolean;
+				min?: boolean;
 				plan?: boolean;
 			};
 
@@ -48,7 +51,21 @@ export async function main(argv: string[], options: MainOptions = {}) {
 
 			const planned =
 				flags.plan === false ? undefined : planOperations(operations);
-			const commands = planned ? buildCommandModel(planned) : undefined;
+			const commands = planned
+				? buildCommandModel(planned, {
+						specId: loaded.id,
+						globalSecurity: loaded.doc.security,
+						authSchemes,
+					})
+				: undefined;
+
+			const capabilities = deriveCapabilities({
+				doc: loaded.doc,
+				servers,
+				authSchemes,
+				operations,
+				commands,
+			});
 
 			const output = buildSchemaOutput(
 				loaded,
@@ -57,12 +74,14 @@ export async function main(argv: string[], options: MainOptions = {}) {
 				servers,
 				authSchemes,
 				commands,
+				capabilities,
 			);
 
 			if (flags.json) {
 				const pretty = Boolean(flags.pretty);
+				const payload = flags.min ? toMinimalSchemaOutput(output) : output;
 				process.stdout.write(
-					`${JSON.stringify(output, null, pretty ? 2 : 0)}\n`,
+					`${JSON.stringify(payload, null, pretty ? 2 : 0)}\n`,
 				);
 				return;
 			}

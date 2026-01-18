@@ -1,6 +1,18 @@
+import type { AuthSummary } from "./auth-requirements.ts";
+import { summarizeAuth } from "./auth-requirements.ts";
+import type { AuthScheme } from "./auth-schemes.ts";
+import { buildCommandId } from "./command-id.ts";
 import type { PlannedOperation } from "./naming.ts";
+import type { ParamSpec } from "./params.ts";
+import { deriveParamSpecs } from "./params.ts";
+import { deriveFlags, derivePositionals } from "./positional.ts";
+import type { RequestBodyInfo } from "./request-body.ts";
+import { deriveRequestBodyInfo } from "./request-body.ts";
+import type { SecurityRequirement } from "./types.ts";
 
 export type CommandAction = {
+	id: string;
+	key: string;
 	action: string;
 	// Derived path arguments. These become positionals later.
 	pathArgs: string[];
@@ -12,6 +24,28 @@ export type CommandAction = {
 	description?: string;
 	deprecated?: boolean;
 	style: PlannedOperation["style"];
+
+	// Derived CLI shape (Phase 1 output; Phase 2 will wire these into commander)
+	positionals: Array<import("./positional.ts").PositionalArg>;
+	flags: Array<
+		Pick<
+			import("./params.ts").ParamSpec,
+			| "in"
+			| "name"
+			| "flag"
+			| "required"
+			| "description"
+			| "type"
+			| "format"
+			| "enum"
+		>
+	>;
+
+	// Full raw params list (useful for debugging and future features)
+	params: ParamSpec[];
+
+	auth: AuthSummary;
+	requestBody?: RequestBodyInfo;
 };
 
 export type CommandResource = {
@@ -23,12 +57,32 @@ export type CommandModel = {
 	resources: CommandResource[];
 };
 
-export function buildCommandModel(planned: PlannedOperation[]): CommandModel {
+export type BuildCommandModelOptions = {
+	specId: string;
+	globalSecurity?: SecurityRequirement[];
+	authSchemes?: AuthScheme[];
+};
+
+export function buildCommandModel(
+	planned: PlannedOperation[],
+	options: BuildCommandModelOptions,
+): CommandModel {
 	const byResource = new Map<string, CommandAction[]>();
 
 	for (const op of planned) {
 		const list = byResource.get(op.resource) ?? [];
+		const params = deriveParamSpecs(op);
+		const positionals = derivePositionals({ pathArgs: op.pathArgs, params });
+		const flags = deriveFlags({ pathArgs: op.pathArgs, params });
+
 		list.push({
+			id: buildCommandId({
+				specId: options.specId,
+				resource: op.resource,
+				action: op.action,
+				operationKey: op.key,
+			}),
+			key: op.key,
 			action: op.action,
 			pathArgs: op.pathArgs,
 			method: op.method,
@@ -39,6 +93,15 @@ export function buildCommandModel(planned: PlannedOperation[]): CommandModel {
 			description: op.description,
 			deprecated: op.deprecated,
 			style: op.style,
+			params,
+			positionals,
+			flags: flags.flags,
+			auth: summarizeAuth(
+				op.security,
+				options.globalSecurity,
+				options.authSchemes ?? [],
+			),
+			requestBody: deriveRequestBodyInfo(op),
 		});
 		byResource.set(op.resource, list);
 	}

@@ -1,0 +1,21 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Collision API",
+		"version": "1.0.0"
+	},
+	"paths": {
+		"/contacts": {
+			"get": {
+				"operationId": "Contacts.List",
+				"responses": { "200": { "description": "OK" } }
+			}
+		},
+		"/contacts/search": {
+			"get": {
+				"operationId": "Contacts.List",
+				"responses": { "200": { "description": "OK" } }
+			}
+		}
+	}
+}

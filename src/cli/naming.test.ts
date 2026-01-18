@@ -5,6 +5,7 @@ import type { NormalizedOperation } from "./types.ts";
 describe("planOperation", () => {
 	test("REST: GET /contacts -> contacts list", () => {
 		const op: NormalizedOperation = {
+			key: "GET /contacts",
 			method: "GET",
 			path: "/contacts",
 			operationId: "Contacts.List",
@@ -21,6 +22,7 @@ describe("planOperation", () => {
 
 	test("REST: singleton /ping stays ping and prefers operationId action", () => {
 		const op: NormalizedOperation = {
+			key: "GET /ping",
 			method: "GET",
 			path: "/ping",
 			operationId: "Ping.Get",
@@ -36,6 +38,7 @@ describe("planOperation", () => {
 
 	test("REST: singular path pluralizes to contacts", () => {
 		const op: NormalizedOperation = {
+			key: "GET /contact/{id}",
 			method: "GET",
 			path: "/contact/{id}",
 			tags: [],
@@ -51,6 +54,7 @@ describe("planOperation", () => {
 
 	test("RPC: POST /Contacts.List -> contacts list", () => {
 		const op: NormalizedOperation = {
+			key: "POST /Contacts.List",
 			method: "POST",
 			path: "/Contacts.List",
 			operationId: "Contacts.List",
@@ -66,6 +70,7 @@ describe("planOperation", () => {
 
 	test("RPC: Retrieve canonicalizes to get", () => {
 		const op: NormalizedOperation = {
+			key: "POST /Contacts.Retrieve",
 			method: "POST",
 			path: "/Contacts.Retrieve",
 			operationId: "Contacts.Retrieve",

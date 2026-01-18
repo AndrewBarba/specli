@@ -7,28 +7,32 @@ describe("buildCommandModel", () => {
 	test("groups operations by resource", () => {
 		const planned: PlannedOperation[] = [
 			{
+				key: "GET /contacts",
 				method: "GET",
 				path: "/contacts",
 				tags: ["Contacts"],
 				parameters: [],
 				resource: "contacts",
 				action: "list",
+				canonicalAction: "list",
 				pathArgs: [],
 				style: "rest",
 			},
 			{
+				key: "GET /contacts/{id}",
 				method: "GET",
 				path: "/contacts/{id}",
 				tags: ["Contacts"],
 				parameters: [],
 				resource: "contacts",
 				action: "get",
+				canonicalAction: "get",
 				pathArgs: ["id"],
 				style: "rest",
 			},
 		];
 
-		const model = buildCommandModel(planned);
+		const model = buildCommandModel(planned, { specId: "contacts-api" });
 		expect(model.resources).toHaveLength(1);
 		expect(model.resources[0]?.resource).toBe("contacts");
 		expect(model.resources[0]?.actions).toHaveLength(2);

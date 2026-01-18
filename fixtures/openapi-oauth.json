@@ -1,0 +1,54 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "OAuth API",
+		"version": "1.0.0"
+	},
+	"servers": [{ "url": "https://api.example.com" }],
+	"security": [
+		{
+			"oauth": ["read:ping"]
+		},
+		{}
+	],
+	"components": {
+		"securitySchemes": {
+			"oauth": {
+				"type": "oauth2",
+				"flows": {
+					"authorizationCode": {
+						"authorizationUrl": "https://example.com/oauth/authorize",
+						"tokenUrl": "https://example.com/oauth/token",
+						"scopes": {
+							"read:ping": "read ping"
+						}
+					},
+					"clientCredentials": {
+						"tokenUrl": "https://example.com/oauth/token",
+						"scopes": {
+							"read:ping": "read ping",
+							"write:ping": "write ping"
+						}
+					}
+				}
+			}
+		}
+	},
+	"paths": {
+		"/ping": {
+			"get": {
+				"operationId": "Ping.Get",
+				"security": [
+					{
+						"oauth": ["read:ping"]
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			}
+		}
+	}
+}

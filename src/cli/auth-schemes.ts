@@ -17,6 +17,38 @@ export type AuthScheme = {
 	scheme?: string;
 	bearerFormat?: string;
 	description?: string;
+
+	// oauth2/openid only (subset of spec, enough to derive flags + docs)
+	oauthFlows?: OAuthFlows;
+	openIdConnectUrl?: string;
+};
+
+export type OAuthFlow = {
+	authorizationUrl?: string;
+	tokenUrl?: string;
+	refreshUrl?: string;
+	scopes: string[];
+};
+
+export type OAuthFlows = Partial<
+	Record<
+		"implicit" | "password" | "clientCredentials" | "authorizationCode",
+		OAuthFlow
+	>
+>;
+
+type RawOAuthFlow = {
+	authorizationUrl?: unknown;
+	tokenUrl?: unknown;
+	refreshUrl?: unknown;
+	scopes?: unknown;
+};
+
+type RawOAuthFlows = {
+	implicit?: RawOAuthFlow;
+	password?: RawOAuthFlow;
+	clientCredentials?: RawOAuthFlow;
+	authorizationCode?: RawOAuthFlow;
 };
 
 type RawSecurityScheme = {
@@ -26,9 +58,50 @@ type RawSecurityScheme = {
 	in?: string;
 	scheme?: string;
 	bearerFormat?: string;
-	flows?: unknown;
+	flows?: RawOAuthFlows;
 	openIdConnectUrl?: string;
 };
+
+function parseOAuthFlow(flow: RawOAuthFlow | undefined): OAuthFlow | undefined {
+	if (!flow) return undefined;
+	const scopesObj = flow.scopes;
+	const scopes =
+		scopesObj && typeof scopesObj === "object" && !Array.isArray(scopesObj)
+			? Object.keys(scopesObj as Record<string, unknown>)
+			: [];
+
+	return {
+		authorizationUrl:
+			typeof flow.authorizationUrl === "string"
+				? flow.authorizationUrl
+				: undefined,
+		tokenUrl: typeof flow.tokenUrl === "string" ? flow.tokenUrl : undefined,
+		refreshUrl:
+			typeof flow.refreshUrl === "string" ? flow.refreshUrl : undefined,
+		scopes: scopes.sort(),
+	};
+}
+
+function parseOAuthFlows(
+	flows: RawOAuthFlows | undefined,
+): OAuthFlows | undefined {
+	if (!flows) return undefined;
+	const out: OAuthFlows = {};
+
+	const implicit = parseOAuthFlow(flows.implicit);
+	if (implicit) out.implicit = implicit;
+
+	const password = parseOAuthFlow(flows.password);
+	if (password) out.password = password;
+
+	const clientCredentials = parseOAuthFlow(flows.clientCredentials);
+	if (clientCredentials) out.clientCredentials = clientCredentials;
+
+	const authorizationCode = parseOAuthFlow(flows.authorizationCode);
+	if (authorizationCode) out.authorizationCode = authorizationCode;
+
+	return Object.keys(out).length ? out : undefined;
+}
 
 export function listAuthSchemes(doc: OpenApiDoc): AuthScheme[] {
 	const schemes = doc.components?.securitySchemes;
@@ -90,6 +163,7 @@ export function listAuthSchemes(doc: OpenApiDoc): AuthScheme[] {
 				key,
 				kind: "oauth2",
 				description: s.description,
+				oauthFlows: parseOAuthFlows(s.flows),
 			});
 			continue;
 		}
@@ -99,6 +173,7 @@ export function listAuthSchemes(doc: OpenApiDoc): AuthScheme[] {
 				key,
 				kind: "openIdConnect",
 				description: s.description,
+				openIdConnectUrl: s.openIdConnectUrl,
 			});
 			continue;
 		}

@@ -1,13 +1,15 @@
 export type SpecSource = "embedded" | "file" | "url";
 
+export type SecurityRequirement = Record<string, string[]>;
+
 export type OpenApiDoc = {
 	openapi: string;
 	info?: {
 		title?: string;
 		version?: string;
 	};
-	servers?: Array<{ url: string }>;
-	security?: unknown;
+	servers?: Array<{ url: string; description?: string; variables?: unknown }>;
+	security?: SecurityRequirement[];
 	components?: {
 		securitySchemes?: Record<string, unknown>;
 	};
@@ -29,6 +31,7 @@ export type NormalizedRequestBody = {
 };
 
 export type NormalizedOperation = {
+	key: string;
 	method: string;
 	path: string;
 	operationId?: string;
@@ -36,7 +39,7 @@ export type NormalizedOperation = {
 	summary?: string;
 	description?: string;
 	deprecated?: boolean;
-	security?: unknown;
+	security?: SecurityRequirement[];
 	parameters: NormalizedParameter[];
 	requestBody?: NormalizedRequestBody;
 };

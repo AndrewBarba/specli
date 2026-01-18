@@ -41,11 +41,13 @@ describe("indexOperations", () => {
 		const ops = indexOperations(doc);
 		expect(ops).toHaveLength(2);
 
+		expect(ops[0]?.key).toBe("GET /contacts");
 		expect(ops[0]?.path).toBe("/contacts");
 		expect(ops[0]?.method).toBe("GET");
 		expect(ops[0]?.parameters).toHaveLength(1);
 		expect(ops[0]?.parameters[0]?.in).toBe("query");
 
+		expect(ops[1]?.key).toBe("GET /contacts/{id}");
 		expect(ops[1]?.path).toBe("/contacts/{id}");
 		expect(ops[1]?.method).toBe("GET");
 		expect(ops[1]?.parameters).toHaveLength(1);

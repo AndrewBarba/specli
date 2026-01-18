@@ -7,6 +7,8 @@ export type PlannedOperation = NormalizedOperation & {
 	action: string;
 	pathArgs: string[];
 	style: "rest" | "rpc";
+	canonicalAction: string;
+	aliasOf?: string;
 };
 
 const GENERIC_TAGS = new Set(["default", "defaults", "api"]);
@@ -179,9 +181,11 @@ export function planOperation(op: NormalizedOperation): PlannedOperation {
 
 	return {
 		...op,
+		key: op.key,
 		style,
 		resource,
 		action,
+		canonicalAction: action,
 		pathArgs: getPathArgs(op.path).map((a) => kebabCase(a)),
 	};
 }
@@ -209,9 +213,12 @@ export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 			? kebabCase(op.operationId)
 			: kebabCase(`${op.method}-${op.path}`);
 
+		const disambiguatedAction = `${op.action}-${suffix}-${idx}`;
+
 		return {
 			...op,
-			action: `${op.action}-${suffix}-${idx}`,
+			action: disambiguatedAction,
+			aliasOf: `${op.resource} ${op.canonicalAction}`,
 		};
 	});
 }

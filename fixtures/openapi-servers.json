@@ -1,0 +1,35 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Servers API",
+		"version": "1.0.0"
+	},
+	"servers": [
+		{
+			"url": "https://{region}.api.example.com/{basePath}",
+			"description": "Regional server",
+			"variables": {
+				"region": {
+					"default": "us",
+					"enum": ["us", "eu"],
+					"description": "Region code"
+				},
+				"basePath": {
+					"default": "v1"
+				}
+			}
+		}
+	],
+	"paths": {
+		"/ping": {
+			"get": {
+				"operationId": "Ping.Get",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			}
+		}
+	}
+}
