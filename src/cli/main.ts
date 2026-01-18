@@ -2,6 +2,7 @@ import { Command } from "commander";
 
 import { listAuthSchemes } from "./auth-schemes.ts";
 import { deriveCapabilities } from "./capabilities.ts";
+import { buildCommandsIndex } from "./command-index.ts";
 import { buildCommandModel } from "./command-model.ts";
 import { planOperations } from "./naming.ts";
 import { indexOperations } from "./operations.ts";
@@ -67,6 +68,8 @@ export async function main(argv: string[], options: MainOptions = {}) {
 				commands,
 			});
 
+			const commandsIndex = buildCommandsIndex(commands);
+
 			const output = buildSchemaOutput(
 				loaded,
 				operations,
@@ -74,6 +77,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 				servers,
 				authSchemes,
 				commands,
+				commandsIndex,
 				capabilities,
 			);
 

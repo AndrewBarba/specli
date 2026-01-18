@@ -23,11 +23,17 @@ export type SchemaOutput = {
 	operations: NormalizedOperation[];
 	planned?: PlannedOperation[];
 	commands?: CommandModel;
+	commandsIndex?: import("./command-index.ts").CommandsIndex;
 };
 
 export type MinimalSchemaOutput = Pick<
 	SchemaOutput,
-	"schemaVersion" | "openapi" | "spec" | "capabilities" | "commands"
+	| "schemaVersion"
+	| "openapi"
+	| "spec"
+	| "capabilities"
+	| "commands"
+	| "commandsIndex"
 >;
 
 export function buildSchemaOutput(
@@ -37,6 +43,7 @@ export function buildSchemaOutput(
 	servers: ServerInfo[],
 	authSchemes: AuthScheme[],
 	commands: CommandModel | undefined,
+	commandsIndex: import("./command-index.ts").CommandsIndex | undefined,
 	capabilities: Capabilities,
 ): SchemaOutput {
 	return {
@@ -57,6 +64,7 @@ export function buildSchemaOutput(
 		operations,
 		planned,
 		commands,
+		commandsIndex,
 	};
 }
 
@@ -69,5 +77,6 @@ export function toMinimalSchemaOutput(
 		spec: output.spec,
 		capabilities: output.capabilities,
 		commands: output.commands,
+		commandsIndex: output.commandsIndex,
 	};
 }
