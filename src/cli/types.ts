@@ -24,6 +24,13 @@ export type NormalizedParameter = {
 	schema?: unknown;
 };
 
+// Minimal JSON Schema-like shape for validation and flag expansion.
+export type JsonSchema = Record<string, unknown>;
+
+export function isJsonSchema(value: unknown): value is JsonSchema {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export type NormalizedRequestBody = {
 	required: boolean;
 	contentTypes: string[];

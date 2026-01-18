@@ -30,5 +30,6 @@ describe("deriveRequestBodyInfo", () => {
 			"application/json",
 			"application/x-www-form-urlencoded",
 		]);
+		expect(info?.preferredSchema).toEqual({ type: "object" });
 	});
 });

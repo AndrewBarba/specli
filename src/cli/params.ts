@@ -18,6 +18,8 @@ export type ParamSpec = {
 	type: ParamType;
 	format?: string;
 	enum?: string[];
+	// Original schema for Ajv validation and future advanced flag expansion.
+	schema?: import("./types.ts").JsonSchema;
 };
 
 export function deriveParamSpecs(op: NormalizedOperation): ParamSpec[] {
@@ -35,6 +37,10 @@ export function deriveParamSpecs(op: NormalizedOperation): ParamSpec[] {
 			type: getSchemaType(p.schema),
 			format: getSchemaFormat(p.schema),
 			enum: getSchemaEnumStrings(p.schema),
+			schema:
+				p.schema && typeof p.schema === "object"
+					? (p.schema as import("./types.ts").JsonSchema)
+					: undefined,
 		});
 	}
 

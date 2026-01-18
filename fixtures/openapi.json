@@ -21,6 +21,12 @@
 						"name": "limit",
 						"schema": { "type": "integer", "minimum": 1, "maximum": 100 },
 						"description": "Max items to return"
+					},
+					{
+						"in": "query",
+						"name": "tag",
+						"schema": { "type": "array", "items": { "type": "string" } },
+						"description": "Filter by tags"
 					}
 				],
 				"responses": {

@@ -3,7 +3,12 @@ import {
 	getSchemaFormat,
 	getSchemaType,
 } from "./schema-shape.ts";
-import type { NormalizedOperation, NormalizedRequestBody } from "./types.ts";
+import type {
+	JsonSchema,
+	NormalizedOperation,
+	NormalizedRequestBody,
+} from "./types.ts";
+import { isJsonSchema } from "./types.ts";
 
 export type RequestBodyContent = {
 	contentType: string;
@@ -24,6 +29,9 @@ export type RequestBodyInfo = {
 	// Phase 1 planning: supported generic body inputs.
 	bodyFlags: string[];
 	preferredContentType?: string;
+
+	// Original JSON Schema (for expanded flags + validation)
+	preferredSchema?: JsonSchema;
 };
 
 function getRequestBody(
@@ -67,6 +75,10 @@ export function deriveRequestBodyInfo(
 		content.find((c) => c.contentType.includes("json"))?.contentType ??
 		content[0]?.contentType;
 
+	const preferredSchema = preferredContentType
+		? rb.schemasByContentType[preferredContentType]
+		: undefined;
+
 	return {
 		required: rb.required,
 		content,
@@ -75,5 +87,8 @@ export function deriveRequestBodyInfo(
 		hasMultipart,
 		bodyFlags,
 		preferredContentType,
+		preferredSchema: isJsonSchema(preferredSchema)
+			? preferredSchema
+			: undefined,
 	};
 }
