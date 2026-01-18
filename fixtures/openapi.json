@@ -1,0 +1,81 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Contacts API",
+		"version": "1.0.0"
+	},
+	"servers": [
+		{
+			"url": "https://api.example.com"
+		}
+	],
+	"paths": {
+		"/contacts": {
+			"get": {
+				"operationId": "Contacts.List",
+				"tags": ["Contacts"],
+				"summary": "List contacts",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "limit",
+						"schema": { "type": "integer", "minimum": 1, "maximum": 100 },
+						"description": "Max items to return"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": { "type": "string" },
+											"name": { "type": "string" }
+										},
+										"required": ["id", "name"]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/contacts/{id}": {
+			"get": {
+				"operationId": "Contacts.Get",
+				"tags": ["Contacts"],
+				"summary": "Get contact",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" }
+									},
+									"required": ["id", "name"]
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

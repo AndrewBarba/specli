@@ -1,1 +1,1 @@
-console.log("Hello via Bun!");
+export { main } from "./src/cli/main.ts";

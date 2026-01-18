@@ -1,0 +1,34 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Auth API",
+		"version": "1.0.0"
+	},
+	"servers": [{ "url": "https://api.example.com" }],
+	"components": {
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT"
+			},
+			"apiKeyAuth": {
+				"type": "apiKey",
+				"in": "header",
+				"name": "X-API-Key"
+			}
+		}
+	},
+	"paths": {
+		"/ping": {
+			"get": {
+				"operationId": "Ping.Get",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			}
+		}
+	}
+}
