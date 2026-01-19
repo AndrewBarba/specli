@@ -61,6 +61,25 @@ bun run ./src/entry.ts --spec ./fixtures/openapi.json contacts list --curl
 
 ## Build a Standalone Executable (Embedded Spec)
 
+There are two ways to compile a single-file executable.
+
+### 1) Programmatic build (recommended)
+
+Use `src/compile.ts`, which calls `Bun.build()` directly.
+
+```bash
+# local build for current platform
+bun run compile --spec ./path/to/openapi.yaml --outfile ./dist/opencli
+
+# cross-compile (example: linux x64)
+bun run compile --spec https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/opencli-linux-x64
+
+# disable runtime config loading for deterministic behavior
+bun run compile --spec ./path/to/openapi.yaml --no-dotenv --no-bunfig --outfile ./dist/opencli
+```
+
+### 2) CLI build
+
 `src/entry-bundle.ts` uses a Bun macro (`with { type: "macro" }`) to load and inline a spec at bundle-time.
 
 ```bash
@@ -70,8 +89,8 @@ OPENCLI_EMBED_SPEC=./path/to/openapi.yaml bun build --compile ./src/entry-bundle
 
 Notes:
 
-- `OPENCLI_EMBED_SPEC` is read at bundle-time, not runtime.
 - Embedded mode removes the need for `--spec`.
+- When using `src/compile.ts`, the spec is embedded by setting `OPENCLI_EMBED_SPEC` for the macro.
 
 ## CLI Shape
 
