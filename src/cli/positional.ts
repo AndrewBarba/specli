@@ -26,6 +26,9 @@ export type FlagsIndex = {
 			| "type"
 			| "format"
 			| "enum"
+			| "itemType"
+			| "itemFormat"
+			| "itemEnum"
 		>
 	>;
 };
@@ -64,6 +67,9 @@ export function deriveFlags(action: ActionShapeForCli): FlagsIndex {
 				type: p.type,
 				format: p.format,
 				enum: p.enum,
+				itemType: p.itemType,
+				itemFormat: p.itemFormat,
+				itemEnum: p.itemEnum,
 			})),
 	};
 }

@@ -13,6 +13,7 @@ import {
 	writeProfiles,
 } from "./runtime/profile/store.ts";
 import { toMinimalSchemaOutput } from "./schema.ts";
+import { stableStringify } from "./stable-json.ts";
 
 type MainOptions = {
 	embeddedSpecText?: string;
@@ -41,6 +42,27 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--profile <name>", "Profile name (stored under ~/.config/opencli)")
 		.option("--json", "Machine-readable output")
 		.showHelpAfterError();
+
+	// Provide namespaced variants for flags which may collide with operation flags.
+	// (Some real-world APIs define parameters named "accept", etc.)
+	program
+		.option(
+			"--oc-header <header>",
+			"Extra header (repeatable, namespaced)",
+			collectRepeatable,
+		)
+		.option("--oc-accept <type>", "Override Accept header (namespaced)")
+		.option("--oc-status", "Include status in --json output (namespaced)")
+		.option("--oc-headers", "Include headers in --json output (namespaced)")
+		.option("--oc-dry-run", "Print request without sending (namespaced)")
+		.option("--oc-curl", "Print curl command without sending (namespaced)")
+		.option("--oc-timeout <ms>", "Request timeout in milliseconds (namespaced)")
+		.option("--oc-data <data>", "Inline request body (namespaced)")
+		.option("--oc-file <path>", "Request body from file (namespaced)")
+		.option(
+			"--oc-content-type <type>",
+			"Override Content-Type (defaults from OpenAPI) (namespaced)",
+		);
 
 	// If user asks for help and we have no embedded spec and no --spec, show minimal help.
 	const spec = getArgValue(argv, "--spec");
@@ -276,9 +298,8 @@ export async function main(argv: string[], options: MainOptions = {}) {
 				const payload = flags.min
 					? toMinimalSchemaOutput(ctx.schema)
 					: ctx.schema;
-				process.stdout.write(
-					`${JSON.stringify(payload, null, pretty ? 2 : 0)}\n`,
-				);
+				const text = stableStringify(payload, { space: pretty ? 2 : 0 });
+				process.stdout.write(`${text}\n`);
 				return;
 			}
 

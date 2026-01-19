@@ -28,12 +28,7 @@ export type SchemaOutput = {
 
 export type MinimalSchemaOutput = Pick<
 	SchemaOutput,
-	| "schemaVersion"
-	| "openapi"
-	| "spec"
-	| "capabilities"
-	| "commands"
-	| "commandsIndex"
+	"schemaVersion" | "openapi" | "spec" | "capabilities" | "commands"
 >;
 
 export function buildSchemaOutput(
@@ -77,6 +72,5 @@ export function toMinimalSchemaOutput(
 		spec: output.spec,
 		capabilities: output.capabilities,
 		commands: output.commands,
-		commandsIndex: output.commandsIndex,
 	};
 }

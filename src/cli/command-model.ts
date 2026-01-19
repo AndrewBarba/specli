@@ -38,6 +38,9 @@ export type CommandAction = {
 			| "type"
 			| "format"
 			| "enum"
+			| "itemType"
+			| "itemFormat"
+			| "itemEnum"
 		>
 	>;
 
@@ -46,6 +49,7 @@ export type CommandAction = {
 
 	auth: AuthSummary;
 	requestBody?: RequestBodyInfo;
+	requestBodySchema?: import("./types.ts").JsonSchema;
 };
 
 export type CommandResource = {
@@ -102,6 +106,7 @@ export function buildCommandModel(
 				options.authSchemes ?? [],
 			),
 			requestBody: deriveRequestBodyInfo(op),
+			requestBodySchema: deriveRequestBodyInfo(op)?.preferredSchema,
 		});
 		byResource.set(op.resource, list);
 	}

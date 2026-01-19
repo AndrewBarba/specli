@@ -1,0 +1,22 @@
+{
+	"openapi": "3.0.3",
+	"info": { "title": "Array Items API", "version": "1.0.0" },
+	"servers": [{ "url": "https://api.example.com" }],
+	"paths": {
+		"/things": {
+			"get": {
+				"operationId": "Things.List",
+				"tags": ["Things"],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "ids",
+						"required": false,
+						"schema": { "type": "array", "items": { "type": "integer" } }
+					}
+				],
+				"responses": { "200": { "description": "OK" } }
+			}
+		}
+	}
+}

@@ -26,16 +26,46 @@ export function coerceValue(raw: string, type: ParamType): unknown {
 		return n;
 	}
 
-	// For now, accept arrays/objects as JSON strings.
-	if (type === "array" || type === "object") {
+	// For now, accept objects as JSON strings.
+	if (type === "object") {
 		try {
 			return JSON.parse(raw);
 		} catch {
 			throw new InvalidArgumentError(
-				`Expected JSON ${type}, got '${raw}'. Use --data/--file for complex bodies.`,
+				`Expected JSON object, got '${raw}'. Use --data/--file for complex bodies.`,
 			);
 		}
 	}
 
+	// Arrays should usually be passed as repeatable flags or comma-separated,
+	// but allow JSON arrays too.
+	if (type === "array") {
+		return coerceArrayInput(raw, "string");
+	}
+
 	return raw;
+}
+
+export function coerceArrayInput(raw: string, itemType: ParamType): unknown[] {
+	const trimmed = raw.trim();
+	if (!trimmed) return [];
+
+	if (trimmed.startsWith("[")) {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch {
+			throw new InvalidArgumentError(`Expected JSON array, got '${raw}'`);
+		}
+		if (!Array.isArray(parsed)) {
+			throw new InvalidArgumentError(`Expected JSON array, got '${raw}'`);
+		}
+		return parsed.map((v) => coerceValue(String(v), itemType));
+	}
+
+	return trimmed
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)
+		.map((s) => coerceValue(s, itemType));
 }

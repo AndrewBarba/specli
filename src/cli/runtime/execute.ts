@@ -24,12 +24,12 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 			authSchemes: input.authSchemes,
 		});
 
-		if (input.globals.curl) {
+		if (input.globals.curl || input.globals.ocCurl) {
 			process.stdout.write(`${curl}\n`);
 			return;
 		}
 
-		if (input.globals.dryRun) {
+		if (input.globals.dryRun || input.globals.ocDryRun) {
 			process.stdout.write(`${request.method} ${request.url}\n`);
 			for (const [k, v] of request.headers.entries()) {
 				process.stdout.write(`${k}: ${v}\n`);
@@ -43,7 +43,9 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 
 		const timeoutMs = input.globals.timeout
 			? Number(input.globals.timeout)
-			: undefined;
+			: input.globals.ocTimeout
+				? Number(input.globals.ocTimeout)
+				: undefined;
 		let timeout: Timer | undefined;
 		let controller: AbortController | undefined;
 		if (timeoutMs && Number.isFinite(timeoutMs) && timeoutMs > 0) {
@@ -75,9 +77,10 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 						`${JSON.stringify({
 							status,
 							body,
-							headers: input.globals.headers
-								? Object.fromEntries(res.headers.entries())
-								: undefined,
+							headers:
+								input.globals.headers || input.globals.ocHeaders
+									? Object.fromEntries(res.headers.entries())
+									: undefined,
 						})}\n`,
 					);
 				} else {
@@ -92,12 +95,19 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 
 			if (input.globals.json) {
 				const payload: unknown =
-					input.globals.status || input.globals.headers
+					input.globals.status ||
+					input.globals.headers ||
+					input.globals.ocStatus ||
+					input.globals.ocHeaders
 						? {
-								status: input.globals.status ? status : undefined,
-								headers: input.globals.headers
-									? Object.fromEntries(res.headers.entries())
-									: undefined,
+								status:
+									input.globals.status || input.globals.ocStatus
+										? status
+										: undefined,
+								headers:
+									input.globals.headers || input.globals.ocHeaders
+										? Object.fromEntries(res.headers.entries())
+										: undefined,
 								body,
 							}
 						: body;

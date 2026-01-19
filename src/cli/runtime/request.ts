@@ -18,17 +18,32 @@ export type RuntimeGlobals = {
 	spec?: string;
 	server?: string;
 	serverVar?: string[];
+
+	// Common runtime flags (may conflict with operation flags).
 	header?: string[];
 	accept?: string;
 	contentType?: string;
 	data?: string;
 	file?: string;
+	timeout?: string;
 	dryRun?: boolean;
 	curl?: boolean;
-	json?: boolean;
 	status?: boolean;
 	headers?: boolean;
-	timeout?: string;
+
+	// Namespaced variants for the runtime flags above.
+	ocHeader?: string[];
+	ocAccept?: string;
+	ocContentType?: string;
+	ocData?: string;
+	ocFile?: string;
+	ocTimeout?: string;
+	ocDryRun?: boolean;
+	ocCurl?: boolean;
+	ocStatus?: boolean;
+	ocHeaders?: boolean;
+
+	json?: boolean;
 
 	auth?: string;
 	bearerToken?: string;
@@ -190,7 +205,8 @@ export async function buildRequest(
 	);
 
 	const headers = new Headers();
-	if (input.globals.accept) headers.set("Accept", input.globals.accept);
+	const accept = input.globals.accept ?? input.globals.ocAccept;
+	if (accept) headers.set("Accept", accept);
 
 	// Collect declared params for validation.
 	const queryValues: Record<string, unknown> = {};
@@ -255,37 +271,141 @@ export async function buildRequest(
 		headers.set("Cookie", existing ? `${existing}; ${part}` : part);
 	}
 
-	const extraHeaders = (input.globals.header ?? []).map(parseHeaderInput);
+	const extraHeaders = [
+		...(input.globals.header ?? []),
+		...(input.globals.ocHeader ?? []),
+	].map(parseHeaderInput);
 	for (const { name, value } of extraHeaders) {
 		headers.set(name, value);
 	}
 
 	let body: string | undefined;
 	if (input.action.requestBody) {
-		const hasData = typeof input.globals.data === "string";
-		const hasFile = typeof input.globals.file === "string";
+		const data = input.globals.data ?? input.globals.ocData;
+		const file = input.globals.file ?? input.globals.ocFile;
+
+		const hasData = typeof data === "string";
+		const hasFile = typeof file === "string";
+
+		const rawBodyFlags =
+			typeof input.flagValues.__body === "object" && input.flagValues.__body
+				? (input.flagValues.__body as Record<string, unknown>)
+				: {};
+
+		const bodyFlags: Record<string, unknown> = Object.fromEntries(
+			Object.entries(rawBodyFlags).filter(
+				([, v]) => typeof v !== "undefined" && v !== false,
+			),
+		);
+
+		const hasExpandedBody = Object.keys(bodyFlags).length > 0;
+
 		if (hasData && hasFile) throw new Error("Use only one of --data or --file");
+		if (hasExpandedBody && (hasData || hasFile)) {
+			throw new Error("Use either --data/--file or --body-* flags (not both)");
+		}
 
 		const contentType =
 			input.globals.contentType ??
+			input.globals.ocContentType ??
 			input.action.requestBody.preferredContentType;
 		if (contentType) headers.set("Content-Type", contentType);
 
-		if (hasData) {
+		const schema = input.action.requestBodySchema;
+
+		if (!hasExpandedBody && !hasData && !hasFile) {
+			if (input.action.requestBody.required) {
+				throw new Error(
+					"Missing request body. Provide --data, --file, or --body-* flags.",
+				);
+			}
+		} else if (hasExpandedBody) {
+			if (!contentType?.includes("json")) {
+				throw new Error(
+					"Expanded body flags are only supported for JSON request bodies. Use --content-type application/json or --data/--file.",
+				);
+			}
+
+			// Friendly "missing required field" errors for expanded flags.
+			if (schema?.required && Array.isArray(schema.required)) {
+				for (const name of schema.required) {
+					const n = String(name);
+					const key = `body${n[0]?.toUpperCase()}${n.slice(1)}`;
+					if (!(key in bodyFlags)) {
+						throw new Error(
+							`Missing required body field '${n}'. Provide --body-${n} or use --data/--file.`,
+						);
+					}
+				}
+			}
+
+			const built: Record<string, unknown> = {};
+			for (const [k, v] of Object.entries(bodyFlags)) {
+				if (!k.startsWith("body")) continue;
+				const name = k.slice("body".length);
+				const propName = name.length
+					? name[0]?.toLowerCase() + name.slice(1)
+					: "";
+				if (!propName) continue;
+
+				const propSchema =
+					schema && schema.type === "object" && schema.properties
+						? (schema.properties as Record<string, unknown>)[propName]
+						: undefined;
+				const t =
+					propSchema && typeof propSchema === "object"
+						? (propSchema as { type?: unknown }).type
+						: "string";
+
+				if (t === "boolean") {
+					built[propName] = true;
+				} else if (t === "integer") {
+					built[propName] = Number.parseInt(String(v), 10);
+				} else if (t === "number") {
+					built[propName] = Number(String(v));
+				} else {
+					built[propName] = String(v);
+				}
+			}
+
+			if (schema) {
+				const validate = ajv.compile(schema);
+				if (!validate(built)) {
+					throw new Error(formatAjvErrors(validate.errors));
+				}
+			}
+
+			body = JSON.stringify(built);
+		} else if (hasData) {
 			if (contentType?.includes("json")) {
-				// Validate basic JSON/YAML input and normalize JSON output.
-				const parsed = parseBodyAsJsonOrYaml(input.globals.data as string);
+				const parsed = parseBodyAsJsonOrYaml(data as string);
+
+				if (schema) {
+					const validate = ajv.compile(schema);
+					if (!validate(parsed)) {
+						throw new Error(formatAjvErrors(validate.errors));
+					}
+				}
+
 				body = JSON.stringify(parsed);
 			} else {
-				body = input.globals.data as string;
+				body = data as string;
 			}
 		} else if (hasFile) {
 			const loaded = await loadBody({
 				kind: "file",
-				path: input.globals.file as string,
+				path: file as string,
 			});
 			if (contentType?.includes("json")) {
 				const parsed = parseBodyAsJsonOrYaml(loaded?.raw ?? "");
+
+				if (schema) {
+					const validate = ajv.compile(schema);
+					if (!validate(parsed)) {
+						throw new Error(formatAjvErrors(validate.errors));
+					}
+				}
+
 				body = JSON.stringify(parsed);
 			} else {
 				body = loaded?.raw;
@@ -293,8 +413,8 @@ export async function buildRequest(
 		}
 	} else {
 		if (
-			typeof input.globals.data === "string" ||
-			typeof input.globals.file === "string"
+			typeof (input.globals.data ?? input.globals.ocData) === "string" ||
+			typeof (input.globals.file ?? input.globals.ocFile) === "string"
 		) {
 			throw new Error("This operation does not accept a request body");
 		}

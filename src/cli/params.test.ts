@@ -45,4 +45,26 @@ describe("deriveParamSpecs", () => {
 		expect(reqId?.flag).toBe("--x-request-id");
 		expect(reqId?.type).toBe("string");
 	});
+
+	test("derives array item types", () => {
+		const op: NormalizedOperation = {
+			key: "GET /things",
+			method: "GET",
+			path: "/things",
+			tags: [],
+			parameters: [
+				{
+					in: "query",
+					name: "ids",
+					required: false,
+					schema: { type: "array", items: { type: "integer" } },
+				},
+			],
+		};
+
+		const specs = deriveParamSpecs(op);
+		expect(specs).toHaveLength(1);
+		expect(specs[0]?.type).toBe("array");
+		expect(specs[0]?.itemType).toBe("integer");
+	});
 });

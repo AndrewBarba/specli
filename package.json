@@ -10,7 +10,8 @@
 		"lint:check": "biome check --write --unsafe",
 		"lint:format": "biome format --write",
 		"test": "bun test",
-		"typecheck": "tsgo"
+		"typecheck": "tsgo",
+		"smoke:specs": "bun ./src/smoke-specs.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.11",
