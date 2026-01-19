@@ -76,6 +76,14 @@ bun run compile --spec https://api.vercel.com/copper/_openapi.json --target bun-
 
 # disable runtime config loading for deterministic behavior
 bun run compile --spec ./path/to/openapi.yaml --no-dotenv --no-bunfig --outfile ./dist/opencli
+
+# bake in defaults (these become default flags; runtime flags override)
+bun run compile \
+  --spec https://api.vercel.com/copper/_openapi.json \
+  --name copper \
+  --outfile ./dist/copper \
+  --server https://api.vercel.com \
+  --auth VercelOidc
 ```
 
 ### 2) CLI build

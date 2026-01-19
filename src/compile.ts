@@ -15,12 +15,18 @@ Options:
   --no-bunfig              Disable bunfig.toml autoload in compiled binary
   --exec-argv <arg>        Add an embedded process.execArgv value (repeatable)
   --define <k=v>           Build-time constant (repeatable)
+
+Defaults to embed into the binary:
+  --server <url>           Default server URL (baked in; user flags override)
+  --server-var <k=v>       Default server variable (repeatable)
+  --auth <scheme>          Default auth scheme key
+
   -h, --help               Show help
 
 Examples:
   bun ./src/compile.ts --spec ./fixtures/openapi.json
-  bun ./src/compile.ts --spec https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/opencli-linux
-  bun ./src/compile.ts --spec ./openapi.yaml --define BUILD_VERSION=1.2.3 --minify
+  bun ./src/compile.ts --spec https://api.vercel.com/copper/_openapi.json --name copper --minify
+  bun ./src/compile.ts --spec https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/copper-linux
 `);
 }
 
@@ -76,6 +82,9 @@ async function main(argv: string[]): Promise<void> {
 	}
 
 	const outfile = getArgValue(argv, "--outfile") ?? `./dist/${name}`;
+	const server = getArgValue(argv, "--server");
+	const serverVar = getArgValues(argv, "--server-var");
+	const auth = getArgValue(argv, "--auth");
 	const target = getArgValue(argv, "--target");
 	const minify = hasArg(argv, "--minify");
 	const bytecode = hasArg(argv, "--bytecode");
@@ -91,23 +100,43 @@ async function main(argv: string[]): Promise<void> {
 		define[key] = JSON.stringify(value);
 	}
 
-	// Prepare the embedded spec for the entrypoint macro.
-	// We pass the spec location through env to keep the macro callsite static.
-	process.env.OPENCLI_EMBED_SPEC = spec;
+	// Allow compile-time defaults (server/auth) by embedding execArgv.
+	const embeddedExecArgv: string[] = [];
+	if (server) embeddedExecArgv.push(`--server=${server}`);
+	for (const pair of serverVar) embeddedExecArgv.push(`--server-var=${pair}`);
+	if (auth) embeddedExecArgv.push(`--auth=${auth}`);
+
+	// Fetch/read the spec now and inject it as a build-time constant.
+	// This avoids relying on Bun macros reading env vars during Bun.build().
+	let embeddedSpecText: string;
+	if (/^https?:\/\//i.test(spec)) {
+		const res = await fetch(spec);
+		if (!res.ok)
+			throw new Error(`Failed to fetch spec: ${res.status} ${res.statusText}`);
+		embeddedSpecText = await res.text();
+	} else {
+		embeddedSpecText = await Bun.file(spec).text();
+	}
 
 	const compileTarget = target
 		? (target as Bun.Build.Target)
 		: (`bun-${process.platform}-${process.arch}` as Bun.Build.Target);
 
 	const result = await Bun.build({
-		entrypoints: ["./src/entry-bundle.ts"],
+		entrypoints: ["./src/entry-compile.ts"],
 		minify,
 		bytecode,
-		define,
+		define: {
+			...define,
+			OPENCLI_EMBED_SPEC_TEXT: JSON.stringify(embeddedSpecText),
+		},
 		compile: {
 			target: compileTarget,
 			outfile,
-			execArgv: compileExecArgv.length ? compileExecArgv : undefined,
+			execArgv:
+				embeddedExecArgv.length || compileExecArgv.length
+					? [...embeddedExecArgv, ...compileExecArgv]
+					: undefined,
 			autoloadDotenv,
 			autoloadBunfig,
 			// tsconfig.json and package.json autoload are disabled by default.
