@@ -2,7 +2,7 @@
 	"name": "specli",
 	"module": "index.ts",
 	"type": "module",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"bin": {
 		"specli": "./cli.ts"
 	},
