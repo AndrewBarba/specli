@@ -24,7 +24,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 	const program = new Command();
 
 	program
-		.name(options.cliName ?? "opencli")
+		.name(options.cliName ?? "specli")
 		.description("Generate a CLI from an OpenAPI spec")
 		.option("--spec <urlOrPath>", "OpenAPI URL or file path")
 		.option("--server <url>", "Override server/base URL")
@@ -39,7 +39,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--username <username>", "Basic auth username")
 		.option("--password <password>", "Basic auth password")
 		.option("--api-key <key>", "API key value")
-		.option("--profile <name>", "Profile name (stored under ~/.config/opencli)")
+		.option("--profile <name>", "Profile name (stored under ~/.config/specli)")
 		.option("--json", "Machine-readable output")
 		.showHelpAfterError();
 
@@ -83,7 +83,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 
 	const profileCmd = program
 		.command("profile")
-		.description("Manage OpenCLI profiles");
+		.description("Manage specli profiles");
 
 	profileCmd
 		.command("list")
@@ -318,9 +318,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 					const args = op.pathArgs.length
 						? ` ${op.pathArgs.map((a) => `<${a}>`).join(" ")}`
 						: "";
-					process.stdout.write(
-						`- opencli ${op.resource} ${op.action}${args}\n`,
-					);
+					process.stdout.write(`- specli ${op.resource} ${op.action}${args}\n`);
 				}
 			}
 		});

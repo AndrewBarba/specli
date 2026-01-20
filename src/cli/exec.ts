@@ -26,7 +26,7 @@ export async function execCommand(
 	// [node, script, --spec, <spec>, ...options, ...remainingArgs]
 	const argv = [
 		process.argv[0] ?? "bun",
-		process.argv[1] ?? "opencli",
+		process.argv[1] ?? "specli",
 		"--spec",
 		spec,
 	];

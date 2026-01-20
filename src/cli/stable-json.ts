@@ -10,7 +10,7 @@ function sort(value: unknown, visiting: WeakSet<object>): unknown {
 	if (value === null) return null;
 
 	if (Array.isArray(value)) {
-		if (visiting.has(value)) return { __opencli_circular: true };
+		if (visiting.has(value)) return { __specli_circular: true };
 		visiting.add(value);
 		const out = value.map((v) => sort(v, visiting));
 		visiting.delete(value);
@@ -18,7 +18,7 @@ function sort(value: unknown, visiting: WeakSet<object>): unknown {
 	}
 
 	if (typeof value === "object") {
-		if (visiting.has(value)) return { __opencli_circular: true };
+		if (visiting.has(value)) return { __specli_circular: true };
 		visiting.add(value);
 
 		const obj = value as Record<string, unknown>;

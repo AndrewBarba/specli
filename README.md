@@ -1,6 +1,6 @@
-# opencli
+# specli
 
-OpenCLI turns an OpenAPI spec into a non-interactive, “curl replacement” CLI.
+specli turns an OpenAPI spec into a non-interactive, “curl replacement” CLI.
 
 It has two modes:
 
@@ -38,25 +38,25 @@ bun install
 Inspect what commands will be generated:
 
 ```bash
-bunx opencli exec ./fixtures/openapi.json __schema
+bunx specli exec ./fixtures/openapi.json __schema
 ```
 
 Machine-readable schema output:
 
 ```bash
-bunx opencli exec ./fixtures/openapi.json __schema --json
+bunx specli exec ./fixtures/openapi.json __schema --json
 ```
 
 Minimal schema output (best for large specs):
 
 ```bash
-bunx opencli exec ./fixtures/openapi.json __schema --json --min
+bunx specli exec ./fixtures/openapi.json __schema --json --min
 ```
 
 Run a generated operation:
 
 ```bash
-bunx opencli exec ./fixtures/openapi.json contacts list --oc-curl
+bunx specli exec ./fixtures/openapi.json contacts list --oc-curl
 ```
 
 ## Build a Standalone Executable
@@ -65,27 +65,27 @@ Use the `compile` command to create a standalone binary with the spec embedded:
 
 ```bash
 # compile with auto-derived name (from spec title)
-bunx opencli compile ./path/to/openapi.yaml
+bunx specli compile ./path/to/openapi.yaml
 # → ./dist/my-api (derived from info.title)
 
 # compile with explicit name
-bunx opencli compile ./path/to/openapi.yaml --name myapi
+bunx specli compile ./path/to/openapi.yaml --name myapi
 # → ./dist/myapi
 
 # cross-compile (example: linux x64)
-bunx opencli compile https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/copper-linux
+bunx specli compile https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/copper-linux
 
 # disable runtime config loading for deterministic behavior
-bunx opencli compile ./path/to/openapi.yaml --no-dotenv --no-bunfig
+bunx specli compile ./path/to/openapi.yaml --no-dotenv --no-bunfig
 
 # bake in defaults (these become default flags; runtime flags override)
-bunx opencli compile https://api.vercel.com/copper/_openapi.json \
+bunx specli compile https://api.vercel.com/copper/_openapi.json \
   --name copper \
   --server https://api.vercel.com \
   --auth VercelOidc
 ```
 
-The compiled binary is a root CLI - no `opencli` prefix needed:
+The compiled binary is a root CLI - no `specli` prefix needed:
 
 ```bash
 ./dist/copper contacts list
@@ -100,10 +100,10 @@ Notes:
 
 ## CLI Shape
 
-OpenCLI generates commands of the form:
+specli generates commands of the form:
 
 ```
-opencli <resource> <action> [...positionals] [options]
+specli <resource> <action> [...positionals] [options]
 ```
 
 - `resource` comes from `tags[0]`, `operationId` prefix, or the first path segment (heuristics).
@@ -119,7 +119,7 @@ Available on the root command:
 - `--spec <urlOrPath>`: OpenAPI URL or file path (only needed for compiled binaries to override embedded spec)
 - `--server <url>`: override server/base URL
 - `--server-var <name=value>`: server URL template variable (repeatable)
-- `--profile <name>`: profile name (config under `~/.config/opencli`)
+- `--profile <name>`: profile name (config under `~/.config/specli`)
 
 Auth selection + credentials:
 
@@ -189,9 +189,9 @@ Array parameters are treated as repeatable flags and appended to the query strin
 All of these become `?tag=a&tag=b`:
 
 ```bash
-opencli ... --tag a --tag b
-opencli ... --tag a,b
-opencli ... --tag '["a","b"]'
+specli ... --tag a --tag b
+specli ... --tag a,b
+specli ... --tag '["a","b"]'
 ```
 
 Implementation notes:
@@ -236,7 +236,7 @@ If `Content-Type` does not include `json`:
 
 ### Schema Validation (Ajv)
 
-OpenCLI uses Ajv (best-effort, `strict: false`) to validate:
+specli uses Ajv (best-effort, `strict: false`) to validate:
 
 - query/header/cookie params
 - JSON request bodies when a requestBody schema is available
@@ -247,7 +247,7 @@ Validation errors are formatted into a readable multiline message. For `required
 
 ### Expanded JSON Body Flags (`--body-*`)
 
-When an operation has a `requestBody` and the preferred schema is a JSON object with scalar properties, OpenCLI generates convenience flags:
+When an operation has a `requestBody` and the preferred schema is a JSON object with scalar properties, specli generates convenience flags:
 
 - For `string|number|integer`: `--body-<prop> <value>`
 - For `boolean`: `--body-<prop>` (presence sets it to `true`)
@@ -255,7 +255,7 @@ When an operation has a `requestBody` and the preferred schema is a JSON object 
 Example (from `fixtures/openapi-body.json`):
 
 ```bash
-bunx opencli exec ./fixtures/openapi-body.json contacts create --body-name "Ada" --oc-curl
+bunx specli exec ./fixtures/openapi-body.json contacts create --body-name "Ada" --oc-curl
 ```
 
 Produces a JSON body:
@@ -266,14 +266,14 @@ Produces a JSON body:
 
 Notes / edge cases:
 
-- Expanded flags are only supported for JSON bodies. If you try to use them without a JSON content type, OpenCLI errors.
+- Expanded flags are only supported for JSON bodies. If you try to use them without a JSON content type, specli errors.
 - Required fields in the schema are checked in a “friendly” way for expanded flags:
   - `Missing required body field 'name'. Provide --body-name or use --data/--file.`
 - Numeric coercion uses `Number(...)` / `parseInt(...)`. Today it does not explicitly reject `NaN` (this is an area to harden).
 
 ## Servers
 
-OpenCLI resolves the request base URL in this order:
+specli resolves the request base URL in this order:
 
 1. `--server <url>`
 2. profile `server` (if `--profile` is set and the profile has a server)
@@ -288,7 +288,7 @@ If the chosen server URL has template variables (e.g. `https://{region}.api.exam
 
 ### Supported Scheme Kinds
 
-From `components.securitySchemes`, OpenCLI recognizes:
+From `components.securitySchemes`, specli recognizes:
 
 - HTTP bearer (`type: http`, `scheme: bearer`)
 - HTTP basic (`type: http`, `scheme: basic`)
@@ -312,7 +312,7 @@ This “only if present in current spec” behavior prevents accidental auth lea
 Bearer-like schemes (`http-bearer`, `oauth2`, `openIdConnect`):
 
 - `--bearer-token <token>` or `--oauth-token <token>`
-- or a profile token stored via `opencli auth token ...`
+- or a profile token stored via `specli auth token ...`
 
 Basic auth:
 
@@ -328,8 +328,8 @@ Profiles are for automation.
 
 Config file:
 
-- Read preference: `~/.config/opencli/profiles.json`, else `~/.config/opencli/profiles.yaml` if present
-- Writes always go to: `~/.config/opencli/profiles.json`
+- Read preference: `~/.config/specli/profiles.json`, else `~/.config/specli/profiles.yaml` if present
+- Writes always go to: `~/.config/specli/profiles.json`
 
 Secrets:
 
@@ -338,14 +338,14 @@ Secrets:
 Commands:
 
 ```bash
-opencli profile list
-opencli profile set --name dev --server https://api.example.com --auth bearerAuth --default
-opencli profile use --name dev
-opencli profile rm --name dev
+specli profile list
+specli profile set --name dev --server https://api.example.com --auth bearerAuth --default
+specli profile use --name dev
+specli profile rm --name dev
 
-opencli auth token --name dev --set "..."
-opencli auth token --name dev --get
-opencli auth token --name dev --delete
+specli auth token --name dev --set "..."
+specli auth token --name dev --get
+specli auth token --name dev --delete
 ```
 
 ## Output Behavior
@@ -395,7 +395,7 @@ Prints the method, URL, headers, and body that would be sent without sending the
 
 ## `__schema`
 
-`opencli __schema` reports:
+`specli __schema` reports:
 
 - OpenAPI title/version
 - spec source + computed spec id + fingerprint
@@ -440,15 +440,15 @@ bun run smoke:specs
 Or run ad-hoc smoke tests:
 
 ```bash
-bunx opencli exec <URL> __schema --json --min > /dev/null
-bunx opencli exec <URL> <some-resource> <some-action> --oc-curl
+bunx specli exec <URL> __schema --json --min > /dev/null
+bunx specli exec <URL> <some-resource> <some-action> --oc-curl
 ```
 
-Note: Kubernetes publishes a Swagger 2.0 document (`swagger.json`) which is not OpenAPI 3.x. OpenCLI currently expects `openapi: "3.x"` and will reject Swagger 2.0 specs.
+Note: Kubernetes publishes a Swagger 2.0 document (`swagger.json`) which is not OpenAPI 3.x. specli currently expects `openapi: "3.x"` and will reject Swagger 2.0 specs.
 
 ## Limitations (Important)
 
-OpenCLI is intentionally v1-simple; common gaps for real-world specs:
+specli is intentionally v1-simple; common gaps for real-world specs:
 
 - OpenAPI 3.x only (Swagger 2.0 not supported).
 - Parameter serialization is simplified:

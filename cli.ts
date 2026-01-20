@@ -8,7 +8,7 @@ function collect(value: string, previous: string[] = []): string[] {
 
 const program = new Command();
 
-program.name("opencli").description("Generate CLIs from OpenAPI specs");
+program.name("specli").description("Generate CLIs from OpenAPI specs");
 
 // ─────────────────────────────────────────────────────────────
 // exec command - runs spec dynamically

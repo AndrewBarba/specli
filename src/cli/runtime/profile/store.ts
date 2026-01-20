@@ -17,7 +17,7 @@ function configDir(): string {
 	// Keep it simple (v1). We can move to env-paths later.
 	const home = process.env.HOME;
 	if (!home) throw new Error("Missing HOME env var");
-	return `${home}/.config/opencli`;
+	return `${home}/.config/specli`;
 }
 
 function configPathJson(): string {

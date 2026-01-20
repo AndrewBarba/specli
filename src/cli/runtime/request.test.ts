@@ -51,7 +51,7 @@ function makeAction(partial?: Partial<CommandAction>): CommandAction {
 describe("buildRequest (requestBody)", () => {
 	test("builds body from expanded --body-* flags", async () => {
 		const prevHome = process.env.HOME;
-		const home = `${tmpdir()}/opencli-test-${crypto.randomUUID()}`;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
 		process.env.HOME = home;
 
 		try {
@@ -78,7 +78,7 @@ describe("buildRequest (requestBody)", () => {
 
 	test("throws when requestBody is required but missing", async () => {
 		const prevHome = process.env.HOME;
-		const home = `${tmpdir()}/opencli-test-${crypto.randomUUID()}`;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
 		process.env.HOME = home;
 
 		try {
@@ -108,7 +108,7 @@ describe("buildRequest (requestBody)", () => {
 
 	test("throws friendly error for missing required expanded field", async () => {
 		const prevHome = process.env.HOME;
-		const home = `${tmpdir()}/opencli-test-${crypto.randomUUID()}`;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
 		process.env.HOME = home;
 
 		try {

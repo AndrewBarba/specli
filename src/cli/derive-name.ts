@@ -12,7 +12,7 @@ const RESERVED_NAMES = [
  * Priority:
  *   1. info.title (kebab-cased, sanitized)
  *   2. Host from spec URL (if URL provided)
- *   3. Fallback to "opencli"
+ *   3. Fallback to "specli"
  */
 export async function deriveBinaryName(spec: string): Promise<string> {
 	try {
@@ -48,7 +48,7 @@ export async function deriveBinaryName(spec: string): Promise<string> {
 	}
 
 	// Fallback
-	return "opencli";
+	return "specli";
 }
 
 async function loadSpecText(spec: string): Promise<string> {

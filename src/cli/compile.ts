@@ -97,8 +97,8 @@ export async function compileCommand(
 		stderr: "pipe",
 		env: {
 			...process.env,
-			OPENCLI_EMBED_SPEC: spec,
-			OPENCLI_CLI_NAME: name,
+			SPECLI_EMBED_SPEC: spec,
+			SPECLI_CLI_NAME: name,
 		},
 	});
 

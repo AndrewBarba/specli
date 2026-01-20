@@ -6,16 +6,16 @@ import { loadSpec } from "./macros/spec.ts" with { type: "macro" };
 
 // This entrypoint is intended to be compiled.
 // The spec is embedded via Bun macro at bundle-time.
-const embeddedSpecText = await loadSpec(envRequired("OPENCLI_EMBED_SPEC"));
+const embeddedSpecText = await loadSpec(envRequired("SPECLI_EMBED_SPEC"));
 
 // CLI name is also embedded at bundle-time.
-const cliName = env("OPENCLI_CLI_NAME");
+const cliName = env("SPECLI_CLI_NAME");
 
 // Use embedded `execArgv` as default CLI args.
 // We insert them before user-provided args so user flags win.
 const argv = [
-	process.argv[0] ?? cliName ?? "opencli",
-	process.argv[1] ?? cliName ?? "opencli",
+	process.argv[0] ?? cliName ?? "specli",
+	process.argv[1] ?? cliName ?? "specli",
 	...(process.execArgv ?? []),
 	...process.argv.slice(2),
 ];

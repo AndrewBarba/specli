@@ -6,7 +6,7 @@ export type SecretKey = {
 };
 
 export function secretServiceForSpec(specId: string): string {
-	return `opencli:${specId}`;
+	return `specli:${specId}`;
 }
 
 export function tokenSecretKey(specId: string, profile: string): SecretKey {

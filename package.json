@@ -1,10 +1,10 @@
 {
-	"name": "opencli",
+	"name": "specli",
 	"module": "index.ts",
 	"type": "module",
 	"version": "0.0.1",
 	"bin": {
-		"opencli": "./cli.ts"
+		"specli": "./cli.ts"
 	},
 	"scripts": {
 		"lint": "biome ci",
