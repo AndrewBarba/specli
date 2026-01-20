@@ -10,7 +10,6 @@
 		"lint": "biome ci",
 		"lint:check": "biome check --write --unsafe",
 		"lint:format": "biome format --write",
-		"test": "bun test",
 		"typecheck": "tsgo"
 	},
 	"devDependencies": {
