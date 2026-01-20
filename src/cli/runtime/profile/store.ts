@@ -1,4 +1,10 @@
-import { YAML } from "bun";
+import {
+	fileExists,
+	mkdirp,
+	parseYamlContent,
+	readFileText,
+	writeFileText,
+} from "../compat.ts";
 
 export type Profile = {
 	name: string;
@@ -32,21 +38,17 @@ export async function readProfiles(): Promise<ProfilesFile> {
 	const jsonPath = configPathJson();
 	const yamlPath = configPathYaml();
 
-	const jsonFile = Bun.file(jsonPath);
-	const yamlFile = Bun.file(yamlPath);
+	const jsonExists = await fileExists(jsonPath);
+	const yamlExists = await fileExists(yamlPath);
 
-	const file = (await jsonFile.exists())
-		? jsonFile
-		: (await yamlFile.exists())
-			? yamlFile
-			: null;
+	const filePath = jsonExists ? jsonPath : yamlExists ? yamlPath : null;
 
-	if (!file) return { profiles: [] };
+	if (!filePath) return { profiles: [] };
 
-	const text = await file.text();
+	const text = await readFileText(filePath);
 	let parsed: unknown;
 	try {
-		parsed = YAML.parse(text) as unknown;
+		parsed = parseYamlContent(text) as unknown;
 	} catch {
 		parsed = JSON.parse(text) as unknown;
 	}
@@ -70,8 +72,8 @@ export async function readProfiles(): Promise<ProfilesFile> {
 
 export async function writeProfiles(data: ProfilesFile): Promise<void> {
 	const dir = configDir();
-	await Bun.$`mkdir -p ${dir}`;
-	await Bun.write(configPathJson(), JSON.stringify(data, null, 2));
+	await mkdirp(dir);
+	await writeFileText(configPathJson(), JSON.stringify(data, null, 2));
 }
 
 export function getProfile(

@@ -2,6 +2,7 @@ import { Command } from "commander";
 
 import { getArgValue, hasAnyArg } from "./runtime/argv.ts";
 import { collectRepeatable } from "./runtime/collect.ts";
+import { readStdinText } from "./runtime/compat.ts";
 import { buildRuntimeContext } from "./runtime/context.ts";
 import { addGeneratedCommands } from "./runtime/generated.ts";
 import { deleteToken, getToken, setToken } from "./runtime/profile/secrets.ts";
@@ -86,8 +87,8 @@ export async function main(argv: string[], options: MainOptions = {}) {
 					}
 					token = Buffer.concat(chunks).toString().trim();
 				} else {
-					// Piped input - use Bun's stdin stream
-					const text = await Bun.stdin.text();
+					// Piped input - use cross-runtime stdin reading
+					const text = await readStdinText();
 					token = text.trim();
 				}
 			}

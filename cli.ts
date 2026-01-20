@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import { Command } from "commander";
 
@@ -11,7 +11,7 @@ const program = new Command();
 program.name("specli").description("Generate CLIs from OpenAPI specs");
 
 // ─────────────────────────────────────────────────────────────
-// exec command - runs spec dynamically
+// exec command - runs spec dynamically (works in both Bun and Node.js)
 // ─────────────────────────────────────────────────────────────
 program
 	.command("exec <spec>")
@@ -39,11 +39,13 @@ program
 	});
 
 // ─────────────────────────────────────────────────────────────
-// compile command - creates standalone binary
+// compile command - creates standalone binary (Bun only)
 // ─────────────────────────────────────────────────────────────
 program
 	.command("compile <spec>")
-	.description("Compile an OpenAPI spec into a standalone CLI binary")
+	.description(
+		"Compile an OpenAPI spec into a standalone CLI binary (requires Bun)",
+	)
 	.option("--name <name>", "Binary name (default: derived from spec)")
 	.option("--outfile <path>", "Output path (default: ./dist/<name>)")
 	.option("--target <target>", "Bun compile target (e.g. bun-linux-x64)")
@@ -61,6 +63,13 @@ program
 	)
 	.option("--auth <scheme>", "Default auth scheme (embedded)")
 	.action(async (spec, options) => {
+		// Check if running in Bun
+		if (typeof globalThis.Bun === "undefined") {
+			console.error("Error: The 'compile' command requires Bun.");
+			console.error("Install Bun: https://bun.sh");
+			console.error("Then run: bunx specli compile <spec>");
+			process.exit(1);
+		}
 		const { compileCommand } = await import("./src/cli/compile.ts");
 		await compileCommand(spec, options);
 	});

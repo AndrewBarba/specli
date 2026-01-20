@@ -1,7 +1,7 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
-import { YAML } from "bun";
 
 import { sha256Hex } from "./crypto.ts";
+import { parseYamlContent } from "./runtime/compat.ts";
 import { getSpecId } from "./spec-id.ts";
 import { stableStringify } from "./stable-json.ts";
 import type { LoadedSpec, OpenApiDoc, SpecSource } from "./types.ts";
@@ -21,7 +21,7 @@ function parseSpecText(text: string): unknown {
 		return JSON.parse(text);
 	}
 
-	return YAML.parse(text);
+	return parseYamlContent(text);
 }
 
 export async function loadSpec(options: LoadSpecOptions): Promise<LoadedSpec> {

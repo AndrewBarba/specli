@@ -1,4 +1,4 @@
-import { YAML } from "bun";
+import { parseYamlContent, readFileText } from "./compat.ts";
 
 export type BodyInput =
 	| { kind: "none" }
@@ -11,7 +11,7 @@ export async function loadBody(
 	if (input.kind === "none") return undefined;
 	if (input.kind === "data") return { raw: input.data };
 
-	const text = await Bun.file(input.path).text();
+	const text = await readFileText(input.path);
 	return { raw: text };
 }
 
@@ -20,5 +20,5 @@ export function parseBodyAsJsonOrYaml(text: string): unknown {
 	if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
 		return JSON.parse(text);
 	}
-	return YAML.parse(text);
+	return parseYamlContent(text);
 }
