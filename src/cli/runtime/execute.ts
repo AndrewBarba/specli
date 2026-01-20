@@ -1,6 +1,7 @@
 import type { CommandAction } from "../command-model.ts";
 
-import { buildRequest } from "./request.ts";
+import type { BodyFlagDef } from "./body-flags.ts";
+import { buildRequest, type EmbeddedDefaults } from "./request.ts";
 
 export type ExecuteInput = {
 	action: CommandAction;
@@ -10,6 +11,8 @@ export type ExecuteInput = {
 	servers: import("../server.ts").ServerInfo[];
 	authSchemes: import("../auth-schemes.ts").AuthScheme[];
 	specId: string;
+	embeddedDefaults?: EmbeddedDefaults;
+	bodyFlagDefs?: BodyFlagDef[];
 };
 
 export async function executeAction(input: ExecuteInput): Promise<void> {
@@ -22,14 +25,16 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 			globals: input.globals,
 			servers: input.servers,
 			authSchemes: input.authSchemes,
+			embeddedDefaults: input.embeddedDefaults,
+			bodyFlagDefs: input.bodyFlagDefs,
 		});
 
-		if (input.globals.curl || input.globals.ocCurl) {
+		if (input.globals.curl) {
 			process.stdout.write(`${curl}\n`);
 			return;
 		}
 
-		if (input.globals.dryRun || input.globals.ocDryRun) {
+		if (input.globals.dryRun) {
 			process.stdout.write(`${request.method} ${request.url}\n`);
 			for (const [k, v] of request.headers.entries()) {
 				process.stdout.write(`${k}: ${v}\n`);
@@ -43,9 +48,7 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 
 		const timeoutMs = input.globals.timeout
 			? Number(input.globals.timeout)
-			: input.globals.ocTimeout
-				? Number(input.globals.ocTimeout)
-				: undefined;
+			: undefined;
 		let timeout: Timer | undefined;
 		let controller: AbortController | undefined;
 		if (timeoutMs && Number.isFinite(timeoutMs) && timeoutMs > 0) {
@@ -77,10 +80,9 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 						`${JSON.stringify({
 							status,
 							body,
-							headers:
-								input.globals.headers || input.globals.ocHeaders
-									? Object.fromEntries(res.headers.entries())
-									: undefined,
+							headers: input.globals.headers
+								? Object.fromEntries(res.headers.entries())
+								: undefined,
 						})}\n`,
 					);
 				} else {
@@ -95,19 +97,12 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 
 			if (input.globals.json) {
 				const payload: unknown =
-					input.globals.status ||
-					input.globals.headers ||
-					input.globals.ocStatus ||
-					input.globals.ocHeaders
+					input.globals.status || input.globals.headers
 						? {
-								status:
-									input.globals.status || input.globals.ocStatus
-										? status
-										: undefined,
-								headers:
-									input.globals.headers || input.globals.ocHeaders
-										? Object.fromEntries(res.headers.entries())
-										: undefined,
+								status: input.globals.status ? status : undefined,
+								headers: input.globals.headers
+									? Object.fromEntries(res.headers.entries())
+									: undefined,
 								body,
 							}
 						: body;

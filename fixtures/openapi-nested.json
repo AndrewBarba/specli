@@ -1,0 +1,45 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Nested Body API",
+		"version": "1.0.0"
+	},
+	"servers": [{ "url": "https://api.example.com" }],
+	"paths": {
+		"/users": {
+			"post": {
+				"operationId": "Users.Create",
+				"tags": ["Users"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"description": "User's full name"
+									},
+									"email": { "type": "string", "description": "User's email" },
+									"address": {
+										"type": "object",
+										"properties": {
+											"street": { "type": "string" },
+											"city": { "type": "string" },
+											"zip": { "type": "string" }
+										}
+									}
+								},
+								"required": ["name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": { "description": "OK" }
+				}
+			}
+		}
+	}
+}

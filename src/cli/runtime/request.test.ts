@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 
 import type { CommandAction } from "../command-model.ts";
 
+import { generateBodyFlags } from "./body-flags.ts";
 import { buildRequest } from "./request.ts";
 import { createAjv, formatAjvErrors } from "./validate/index.ts";
 
@@ -49,22 +50,29 @@ function makeAction(partial?: Partial<CommandAction>): CommandAction {
 }
 
 describe("buildRequest (requestBody)", () => {
-	test("builds body from expanded --body-* flags", async () => {
+	test("builds body from expanded body flags", async () => {
 		const prevHome = process.env.HOME;
 		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
 		process.env.HOME = home;
 
 		try {
+			const action = makeAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
 			const { request, curl } = await buildRequest({
 				specId: "spec",
-				action: makeAction(),
+				action,
 				positionalValues: [],
-				flagValues: { __body: { bodyName: "A" } },
+				flagValues: { name: "A" }, // --name A
 				globals: {},
 				servers: [
 					{ url: "https://api.example.com", variables: [], variableNames: [] },
 				],
 				authSchemes: [],
+				bodyFlagDefs,
 			});
 
 			expect(request.headers.get("Content-Type")).toBe("application/json");
@@ -82,10 +90,16 @@ describe("buildRequest (requestBody)", () => {
 		process.env.HOME = home;
 
 		try {
+			const action = makeAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
 			await expect(() =>
 				buildRequest({
 					specId: "spec",
-					action: makeAction(),
+					action,
 					positionalValues: [],
 					flagValues: {},
 					globals: {},
@@ -97,9 +111,10 @@ describe("buildRequest (requestBody)", () => {
 						},
 					],
 					authSchemes: [],
+					bodyFlagDefs,
 				}),
 			).toThrow(
-				"Missing request body. Provide --data, --file, or --body-* flags.",
+				"Missing request body. Provide --data, --file, or body field flags.",
 			);
 		} finally {
 			process.env.HOME = prevHome;
@@ -112,12 +127,29 @@ describe("buildRequest (requestBody)", () => {
 		process.env.HOME = home;
 
 		try {
+			// Schema with two fields, one required
+			const action = makeAction({
+				requestBodySchema: {
+					type: "object",
+					properties: {
+						name: { type: "string" },
+						email: { type: "string" },
+					},
+					required: ["name"],
+				},
+			});
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			// Provide email but not name (the required one)
 			await expect(() =>
 				buildRequest({
 					specId: "spec",
-					action: makeAction(),
+					action,
 					positionalValues: [],
-					flagValues: { __body: { bodyFoo: "bar" } },
+					flagValues: { email: "test@example.com" }, // --email (but missing --name)
 					globals: {},
 					servers: [
 						{
@@ -127,10 +159,69 @@ describe("buildRequest (requestBody)", () => {
 						},
 					],
 					authSchemes: [],
+					bodyFlagDefs,
 				}),
 			).toThrow(
-				"Missing required body field 'name'. Provide --body-name or use --data/--file.",
+				"Missing required body field 'name'. Provide --name or use --data/--file.",
 			);
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("builds nested object from dot notation flags", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action = makeAction({
+				requestBodySchema: {
+					type: "object",
+					properties: {
+						name: { type: "string" },
+						address: {
+							type: "object",
+							properties: {
+								street: { type: "string" },
+								city: { type: "string" },
+							},
+						},
+					},
+					required: ["name"],
+				},
+			});
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			// Dot notation: --address.street and --address.city should create nested object
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: {
+					name: "Ada",
+					"address.street": "123 Main St", // Commander keeps dots in keys
+					"address.city": "NYC",
+				},
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+				bodyFlagDefs,
+			});
+
+			const body = JSON.parse(await request.clone().text());
+			expect(body).toEqual({
+				name: "Ada",
+				address: {
+					street: "123 Main St",
+					city: "NYC",
+				},
+			});
 		} finally {
 			process.env.HOME = prevHome;
 		}

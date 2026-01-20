@@ -1,8 +1,9 @@
 import type { AuthScheme } from "../../auth-schemes.ts";
 
 export type AuthInputs = {
-	profileAuthScheme?: string;
 	flagAuthScheme?: string;
+	profileAuthScheme?: string;
+	embeddedAuthScheme?: string;
 };
 
 export function resolveAuthScheme(
@@ -10,7 +11,7 @@ export function resolveAuthScheme(
 	required: import("../../auth-requirements.ts").AuthSummary,
 	inputs: AuthInputs,
 ): string | undefined {
-	// Explicit flag wins (but may still be validated later when applying).
+	// Priority: CLI flag > profile > embedded default
 	if (inputs.flagAuthScheme) return inputs.flagAuthScheme;
 
 	if (
@@ -18,6 +19,13 @@ export function resolveAuthScheme(
 		authSchemes.some((s) => s.key === inputs.profileAuthScheme)
 	) {
 		return inputs.profileAuthScheme;
+	}
+
+	if (
+		inputs.embeddedAuthScheme &&
+		authSchemes.some((s) => s.key === inputs.embeddedAuthScheme)
+	) {
+		return inputs.embeddedAuthScheme;
 	}
 
 	// If operation requires exactly one scheme, choose it.

@@ -21,7 +21,7 @@ It works well for a large chunk of “typical” OpenAPI 3.x REST specs:
 - Path/query/header/cookie parameters.
 - Request bodies via `--data` / `--file`.
 - JSON request body parsing + schema validation.
-- Expanded JSON body flags for simple object bodies (`--body-*`).
+- Body field flags matching OpenAPI schema properties (including nested objects with dot notation).
 - Auth injection for common schemes (bearer/basic/apiKey).
 - A deterministic `__schema` output for introspection.
 
@@ -56,7 +56,7 @@ bunx specli exec ./fixtures/openapi.json __schema --json --min
 Run a generated operation:
 
 ```bash
-bunx specli exec ./fixtures/openapi.json contacts list --oc-curl
+bunx specli exec ./fixtures/openapi.json contacts list --curl
 ```
 
 ## Build a Standalone Executable
@@ -207,14 +207,14 @@ If an operation has a `requestBody`, you may provide a body via:
 
 - `--data <string>`
 - `--file <path>`
-- Expanded `--body-*` flags (JSON-only; see below)
+- Body field flags (JSON-only; see below)
 
 Rules:
 
 - `--data` and `--file` are mutually exclusive.
-- Expanded `--body-*` flags cannot be used with `--data` or `--file`.
+- Body field flags cannot be used with `--data` or `--file`.
 - If `requestBody.required` is true and you provide none of the above, the command fails with:
-  - `Missing request body. Provide --data, --file, or --body-* flags.`
+  - `Missing request body. Provide --data, --file, or body field flags.`
 
 ### Content-Type
 
@@ -245,17 +245,18 @@ Validation errors are formatted into a readable multiline message. For `required
 
 - `/<path> missing required property '<name>'`
 
-### Expanded JSON Body Flags (`--body-*`)
+### Body Field Flags
 
-When an operation has a `requestBody` and the preferred schema is a JSON object with scalar properties, specli generates convenience flags:
+When an operation has a `requestBody` and the preferred schema is a JSON object, specli generates convenience flags that match the property names:
 
-- For `string|number|integer`: `--body-<prop> <value>`
-- For `boolean`: `--body-<prop>` (presence sets it to `true`)
+- For `string|number|integer`: `--<prop> <value>`
+- For `boolean`: `--<prop>` (presence sets it to `true`)
+- For nested objects: `--<parent>.<child> <value>` (dot notation)
 
 Example (from `fixtures/openapi-body.json`):
 
 ```bash
-bunx specli exec ./fixtures/openapi-body.json contacts create --body-name "Ada" --oc-curl
+bunx specli exec ./fixtures/openapi-body.json contacts create --name "Ada" --curl
 ```
 
 Produces a JSON body:
@@ -264,11 +265,44 @@ Produces a JSON body:
 {"name":"Ada"}
 ```
 
+#### Nested Objects
+
+Nested object properties use dot notation. For a schema like:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "address": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string" },
+        "city": { "type": "string" }
+      }
+    }
+  }
+}
+```
+
+You can use:
+
+```bash
+mycli contacts create --name "Ada" --address.street "123 Main St" --address.city "NYC"
+```
+
+Which produces:
+
+```json
+{"name":"Ada","address":{"street":"123 Main St","city":"NYC"}}
+```
+
 Notes / edge cases:
 
-- Expanded flags are only supported for JSON bodies. If you try to use them without a JSON content type, specli errors.
-- Required fields in the schema are checked in a “friendly” way for expanded flags:
-  - `Missing required body field 'name'. Provide --body-name or use --data/--file.`
+- Body field flags are only supported for JSON bodies. If you try to use them without a JSON content type, specli errors.
+- Required fields in the schema are checked in a "friendly" way:
+  - `Missing required body field 'name'. Provide --name or use --data/--file.`
+- If a body field flag conflicts with an operation parameter flag, the operation parameter takes precedence.
 - Numeric coercion uses `Number(...)` / `parseInt(...)`. Today it does not explicitly reject `NaN` (this is an area to harden).
 
 ## Servers
@@ -441,7 +475,7 @@ Or run ad-hoc smoke tests:
 
 ```bash
 bunx specli exec <URL> __schema --json --min > /dev/null
-bunx specli exec <URL> <some-resource> <some-action> --oc-curl
+bunx specli exec <URL> <some-resource> <some-action> --curl
 ```
 
 Note: Kubernetes publishes a Swagger 2.0 document (`swagger.json`) which is not OpenAPI 3.x. specli currently expects `openapi: "3.x"` and will reject Swagger 2.0 specs.

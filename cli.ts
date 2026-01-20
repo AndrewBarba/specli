@@ -51,21 +51,15 @@ program
 	.option("--bytecode", "Enable bytecode compilation")
 	.option("--no-dotenv", "Disable .env autoload")
 	.option("--no-bunfig", "Disable bunfig.toml autoload")
-	.option(
-		"--exec-argv <arg>",
-		"Embedded process.execArgv (repeatable)",
-		collect,
-		[],
-	)
 	.option("--define <k=v>", "Build-time constant (repeatable)", collect, [])
-	.option("--server <url>", "Default server URL (baked in)")
+	.option("--server <url>", "Default server URL (embedded)")
 	.option(
 		"--server-var <k=v>",
-		"Default server variable (repeatable)",
+		"Default server variable (repeatable, embedded)",
 		collect,
 		[],
 	)
-	.option("--auth <scheme>", "Default auth scheme")
+	.option("--auth <scheme>", "Default auth scheme (embedded)")
 	.action(async (spec, options) => {
 		const { compileCommand } = await import("./src/cli/compile.ts");
 		await compileCommand(spec, options);

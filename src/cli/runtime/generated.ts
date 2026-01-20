@@ -4,8 +4,10 @@ import type { AuthScheme } from "../auth-schemes.ts";
 import type { CommandModel } from "../command-model.ts";
 import type { ServerInfo } from "../server.ts";
 
+import { type BodyFlagDef, generateBodyFlags } from "./body-flags.ts";
 import { collectRepeatable } from "./collect.ts";
 import { executeAction } from "./execute.ts";
+import type { EmbeddedDefaults } from "./request.ts";
 import { coerceArrayInput, coerceValue } from "./validate/index.ts";
 
 export type GeneratedCliContext = {
@@ -13,6 +15,7 @@ export type GeneratedCliContext = {
 	authSchemes: AuthScheme[];
 	commands: CommandModel;
 	specId: string;
+	embeddedDefaults?: EmbeddedDefaults;
 };
 
 export function addGeneratedCommands(
@@ -77,22 +80,7 @@ export function addGeneratedCommands(
 			const reservedFlags = new Set(action.flags.map((f) => f.flag));
 
 			// Common curl-replacement options.
-			// Some APIs have parameters like `accept`, `timeout`, etc. We always add
-			// namespaced variants (`--oc-*`) and only add the short versions when they
-			// do not conflict with operation flags.
-			cmd
-				.option(
-					"--oc-header <header>",
-					"Extra header (repeatable)",
-					collectRepeatable,
-				)
-				.option("--oc-accept <type>", "Override Accept header")
-				.option("--oc-status", "Include status in --json output")
-				.option("--oc-headers", "Include headers in --json output")
-				.option("--oc-dry-run", "Print request without sending")
-				.option("--oc-curl", "Print curl command without sending")
-				.option("--oc-timeout <ms>", "Request timeout in milliseconds");
-
+			// Only add flags that don't conflict with operation flags.
 			if (!reservedFlags.has("--header")) {
 				cmd.option(
 					"--header <header>",
@@ -119,15 +107,10 @@ export function addGeneratedCommands(
 				cmd.option("--timeout <ms>", "Request timeout in milliseconds");
 			}
 
-			if (action.requestBody) {
-				cmd
-					.option("--oc-data <data>", "Inline request body")
-					.option("--oc-file <path>", "Request body from file")
-					.option(
-						"--oc-content-type <type>",
-						"Override Content-Type (defaults from OpenAPI)",
-					);
+			// Track body flag definitions for this action
+			let bodyFlagDefs: BodyFlagDef[] = [];
 
+			if (action.requestBody) {
 				if (!reservedFlags.has("--data")) {
 					cmd.option("--data <data>", "Inline request body");
 				}
@@ -141,28 +124,17 @@ export function addGeneratedCommands(
 					);
 				}
 
-				// Expanded JSON body flags (only for simple object bodies).
-				const schema = action.requestBodySchema;
-				if (schema && schema.type === "object" && schema.properties) {
-					for (const [name, propSchema] of Object.entries(schema.properties)) {
-						if (!name || typeof name !== "string") continue;
-						if (!propSchema || typeof propSchema !== "object") continue;
-						const t = (propSchema as { type?: unknown }).type;
-						if (
-							t !== "string" &&
-							t !== "number" &&
-							t !== "integer" &&
-							t !== "boolean"
-						) {
-							continue;
-						}
+				// Generate body flags from schema (recursive with dot notation)
+				bodyFlagDefs = generateBodyFlags(
+					action.requestBodySchema,
+					reservedFlags,
+				);
 
-						const flagName = `--body-${name}`;
-						if (t === "boolean") {
-							cmd.option(flagName, `Body field '${name}'`);
-						} else {
-							cmd.option(`${flagName} <value>`, `Body field '${name}'`);
-						}
+				for (const def of bodyFlagDefs) {
+					if (def.type === "boolean") {
+						cmd.option(def.flag, def.description);
+					} else {
+						cmd.option(`${def.flag} <value>`, def.description);
 					}
 				}
 			}
@@ -179,20 +151,16 @@ export function addGeneratedCommands(
 				const globals = command.optsWithGlobals();
 				const local = command.opts();
 
-				const bodyFlags: Record<string, unknown> = {};
-				for (const key of Object.keys(local)) {
-					if (!key.startsWith("body")) continue;
-					bodyFlags[key] = local[key];
-				}
-
 				await executeAction({
 					action,
 					positionalValues,
-					flagValues: { ...local, __body: bodyFlags },
+					flagValues: local,
 					globals,
 					servers: context.servers,
 					authSchemes: context.authSchemes,
 					specId: context.specId,
+					embeddedDefaults: context.embeddedDefaults,
+					bodyFlagDefs,
 				});
 			});
 		}

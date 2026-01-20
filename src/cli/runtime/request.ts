@@ -19,7 +19,7 @@ export type RuntimeGlobals = {
 	server?: string;
 	serverVar?: string[];
 
-	// Common runtime flags (may conflict with operation flags).
+	// Common runtime flags.
 	header?: string[];
 	accept?: string;
 	contentType?: string;
@@ -30,18 +30,6 @@ export type RuntimeGlobals = {
 	curl?: boolean;
 	status?: boolean;
 	headers?: boolean;
-
-	// Namespaced variants for the runtime flags above.
-	ocHeader?: string[];
-	ocAccept?: string;
-	ocContentType?: string;
-	ocData?: string;
-	ocFile?: string;
-	ocTimeout?: string;
-	ocDryRun?: boolean;
-	ocCurl?: boolean;
-	ocStatus?: boolean;
-	ocHeaders?: boolean;
 
 	json?: boolean;
 
@@ -159,6 +147,12 @@ function applyAuth(
 	return { headers, url };
 }
 
+export type EmbeddedDefaults = {
+	server?: string;
+	serverVars?: string[];
+	auth?: string;
+};
+
 export type BuildRequestInput = {
 	specId: string;
 	action: CommandAction;
@@ -167,6 +161,8 @@ export type BuildRequestInput = {
 	globals: RuntimeGlobals;
 	servers: import("../server.ts").ServerInfo[];
 	authSchemes: AuthScheme[];
+	embeddedDefaults?: EmbeddedDefaults;
+	bodyFlagDefs?: import("./body-flags.ts").BodyFlagDef[];
 };
 
 export async function buildRequest(
@@ -174,10 +170,16 @@ export async function buildRequest(
 ): Promise<{ request: Request; curl: string }> {
 	const profilesFile = await readProfiles();
 	const profile = getProfile(profilesFile, input.globals.profile);
+	const embedded = input.embeddedDefaults;
 
-	const serverVars = parseKeyValuePairs(input.globals.serverVar);
+	// Merge server vars: CLI flags override embedded defaults
+	const embeddedServerVars = parseKeyValuePairs(embedded?.serverVars);
+	const cliServerVars = parseKeyValuePairs(input.globals.serverVar);
+	const serverVars = { ...embeddedServerVars, ...cliServerVars };
+
+	// Priority: CLI flag > profile > embedded default
 	const serverUrl = resolveServerUrl({
-		serverOverride: input.globals.server ?? profile?.server,
+		serverOverride: input.globals.server ?? profile?.server ?? embedded?.server,
 		servers: input.servers,
 		serverVars,
 	});
@@ -205,7 +207,7 @@ export async function buildRequest(
 	);
 
 	const headers = new Headers();
-	const accept = input.globals.accept ?? input.globals.ocAccept;
+	const accept = input.globals.accept;
 	if (accept) headers.set("Accept", accept);
 
 	// Collect declared params for validation.
@@ -271,43 +273,36 @@ export async function buildRequest(
 		headers.set("Cookie", existing ? `${existing}; ${part}` : part);
 	}
 
-	const extraHeaders = [
-		...(input.globals.header ?? []),
-		...(input.globals.ocHeader ?? []),
-	].map(parseHeaderInput);
+	const extraHeaders = (input.globals.header ?? []).map(parseHeaderInput);
 	for (const { name, value } of extraHeaders) {
 		headers.set(name, value);
 	}
 
 	let body: string | undefined;
 	if (input.action.requestBody) {
-		const data = input.globals.data ?? input.globals.ocData;
-		const file = input.globals.file ?? input.globals.ocFile;
+		const data = input.globals.data;
+		const file = input.globals.file;
 
 		const hasData = typeof data === "string";
 		const hasFile = typeof file === "string";
 
-		const rawBodyFlags =
-			typeof input.flagValues.__body === "object" && input.flagValues.__body
-				? (input.flagValues.__body as Record<string, unknown>)
-				: {};
-
-		const bodyFlags: Record<string, unknown> = Object.fromEntries(
-			Object.entries(rawBodyFlags).filter(
-				([, v]) => typeof v !== "undefined" && v !== false,
-			),
-		);
-
-		const hasExpandedBody = Object.keys(bodyFlags).length > 0;
+		// Check if any body flags were provided using the flag definitions
+		const bodyFlagDefs = input.bodyFlagDefs ?? [];
+		const hasExpandedBody = bodyFlagDefs.some((def) => {
+			// Commander keeps dots in option names: --address.street -> "address.street"
+			const dotKey = def.path.join(".");
+			return input.flagValues[dotKey] !== undefined;
+		});
 
 		if (hasData && hasFile) throw new Error("Use only one of --data or --file");
 		if (hasExpandedBody && (hasData || hasFile)) {
-			throw new Error("Use either --data/--file or --body-* flags (not both)");
+			throw new Error(
+				"Use either --data/--file or body field flags (not both)",
+			);
 		}
 
 		const contentType =
 			input.globals.contentType ??
-			input.globals.ocContentType ??
 			input.action.requestBody.preferredContentType;
 		if (contentType) headers.set("Content-Type", contentType);
 
@@ -316,57 +311,29 @@ export async function buildRequest(
 		if (!hasExpandedBody && !hasData && !hasFile) {
 			if (input.action.requestBody.required) {
 				throw new Error(
-					"Missing request body. Provide --data, --file, or --body-* flags.",
+					"Missing request body. Provide --data, --file, or body field flags.",
 				);
 			}
 		} else if (hasExpandedBody) {
 			if (!contentType?.includes("json")) {
 				throw new Error(
-					"Expanded body flags are only supported for JSON request bodies. Use --content-type application/json or --data/--file.",
+					"Body field flags are only supported for JSON request bodies. Use --content-type application/json or --data/--file.",
 				);
 			}
 
-			// Friendly "missing required field" errors for expanded flags.
-			if (schema?.required && Array.isArray(schema.required)) {
-				for (const name of schema.required) {
-					const n = String(name);
-					const key = `body${n[0]?.toUpperCase()}${n.slice(1)}`;
-					if (!(key in bodyFlags)) {
-						throw new Error(
-							`Missing required body field '${n}'. Provide --body-${n} or use --data/--file.`,
-						);
-					}
-				}
+			// Check for missing required fields
+			const { findMissingRequired, parseDotNotationFlags } = await import(
+				"./body-flags.ts"
+			);
+			const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
+			if (missing.length > 0) {
+				throw new Error(
+					`Missing required body field '${missing[0]}'. Provide --${missing[0]} or use --data/--file.`,
+				);
 			}
 
-			const built: Record<string, unknown> = {};
-			for (const [k, v] of Object.entries(bodyFlags)) {
-				if (!k.startsWith("body")) continue;
-				const name = k.slice("body".length);
-				const propName = name.length
-					? name[0]?.toLowerCase() + name.slice(1)
-					: "";
-				if (!propName) continue;
-
-				const propSchema =
-					schema && schema.type === "object" && schema.properties
-						? (schema.properties as Record<string, unknown>)[propName]
-						: undefined;
-				const t =
-					propSchema && typeof propSchema === "object"
-						? (propSchema as { type?: unknown }).type
-						: "string";
-
-				if (t === "boolean") {
-					built[propName] = true;
-				} else if (t === "integer") {
-					built[propName] = Number.parseInt(String(v), 10);
-				} else if (t === "number") {
-					built[propName] = Number(String(v));
-				} else {
-					built[propName] = String(v);
-				}
-			}
+			// Build nested object from dot-notation flags
+			const built = parseDotNotationFlags(input.flagValues, bodyFlagDefs);
 
 			if (schema) {
 				const validate = ajv.compile(schema);
@@ -413,20 +380,21 @@ export async function buildRequest(
 		}
 	} else {
 		if (
-			typeof (input.globals.data ?? input.globals.ocData) === "string" ||
-			typeof (input.globals.file ?? input.globals.ocFile) === "string"
+			typeof input.globals.data === "string" ||
+			typeof input.globals.file === "string"
 		) {
 			throw new Error("This operation does not accept a request body");
 		}
 	}
 
-	// Profile-aware auth resolution (flags override profile).
+	// Auth resolution priority: CLI flag > profile > embedded default
 	const resolvedAuthScheme = resolveAuthScheme(
 		input.authSchemes,
 		input.action.auth,
 		{
 			flagAuthScheme: input.globals.auth,
 			profileAuthScheme: profile?.authScheme,
+			embeddedAuthScheme: embedded?.auth,
 		},
 	);
 

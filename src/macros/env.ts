@@ -1,10 +1,6 @@
 /**
  * Bun macro: reads an environment variable at bundle-time.
  * Returns undefined if the env var is not set.
- *
- * Usage:
- *   import { env } from "./macros/env.ts" with { type: "macro" };
- *   const value = env("MY_VAR");
  */
 export function env(name: string): string | undefined {
 	if (!name) throw new Error("env macro: missing variable name");

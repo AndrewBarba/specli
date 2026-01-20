@@ -8,7 +8,6 @@ export type CompileOptions = {
 	bytecode?: boolean;
 	dotenv?: boolean; // --no-dotenv sets this to false
 	bunfig?: boolean; // --no-bunfig sets this to false
-	execArgv?: string[];
 	define?: string[];
 	server?: string;
 	serverVar?: string[];
@@ -37,23 +36,6 @@ export async function compileCommand(
 		? (options.target as Bun.Build.Target)
 		: (`bun-${process.platform}-${process.arch}` as Bun.Build.Target);
 
-	// Build embedded execArgv for runtime defaults
-	const embeddedExecArgv: string[] = [];
-	if (options.server) {
-		embeddedExecArgv.push(`--server=${options.server}`);
-	}
-	if (options.serverVar) {
-		for (const pair of options.serverVar) {
-			embeddedExecArgv.push(`--server-var=${pair}`);
-		}
-	}
-	if (options.auth) {
-		embeddedExecArgv.push(`--auth=${options.auth}`);
-	}
-
-	// User-provided exec-argv
-	const compileExecArgv = options.execArgv ?? [];
-
 	// Parse --define pairs
 	const define: Record<string, string> = {};
 	if (options.define) {
@@ -78,14 +60,6 @@ export async function compileCommand(
 		buildArgs.push("--define", `${k}=${v}`);
 	}
 
-	const execArgv =
-		embeddedExecArgv.length || compileExecArgv.length
-			? [...embeddedExecArgv, ...compileExecArgv]
-			: [];
-	for (const arg of execArgv) {
-		buildArgs.push("--compile-exec-argv", arg);
-	}
-
 	if (options.dotenv === false) buildArgs.push("--no-compile-autoload-dotenv");
 	if (options.bunfig === false) buildArgs.push("--no-compile-autoload-bunfig");
 
@@ -97,8 +71,11 @@ export async function compileCommand(
 		stderr: "pipe",
 		env: {
 			...process.env,
-			SPECLI_EMBED_SPEC: spec,
-			SPECLI_CLI_NAME: name,
+			SPECLI_SPEC: spec,
+			SPECLI_NAME: name,
+			SPECLI_SERVER: options.server ?? "",
+			SPECLI_SERVER_VARS: options.serverVar?.join(",") ?? "",
+			SPECLI_AUTH: options.auth ?? "",
 		},
 	});
 
