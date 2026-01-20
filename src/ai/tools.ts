@@ -100,7 +100,7 @@ export function specli(options: SpecliToolOptions) {
 				.optional()
 				.describe("Named flags"),
 		}),
-    execute: async ({ command, resource, action, args, flags }) => {
+		execute: async ({ command, resource, action, args, flags }) => {
 			const ctx = await getContext(spec);
 
 			if (command === "list") {

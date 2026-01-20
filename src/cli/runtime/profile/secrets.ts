@@ -1,5 +1,7 @@
 import { isBun } from "../compat.ts";
 
+const bunLiteral = "bun" as const;
+
 export type SecretKey = {
 	service: string;
 	name: string;
@@ -36,7 +38,7 @@ export async function setToken(
 		return;
 	}
 
-	const { secrets } = await import("bun");
+	const { secrets } = await import(bunLiteral);
 	const key = tokenSecretKey(specId, profile);
 	await secrets.set({ service: key.service, name: key.name, value: token });
 }
@@ -54,7 +56,7 @@ export async function getToken(
 		return null;
 	}
 
-	const { secrets } = await import("bun");
+	const { secrets } = await import(bunLiteral);
 	const key = tokenSecretKey(specId, profile);
 	return await secrets.get({ service: key.service, name: key.name });
 }
@@ -75,7 +77,7 @@ export async function deleteToken(
 		return false;
 	}
 
-	const { secrets } = await import("bun");
+	const { secrets } = await import(bunLiteral);
 	const key = tokenSecretKey(specId, profile);
 	return await secrets.delete({ service: key.service, name: key.name });
 }

@@ -24,7 +24,7 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = (await tool.execute!({ command: "list" }, mockOptions)) as {
+		const result = (await tool.execute?.({ command: "list" }, mockOptions)) as {
 			resources: unknown[];
 		};
 
@@ -37,7 +37,7 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = (await tool.execute!(
+		const result = (await tool.execute?.(
 			{ command: "help", resource: "pets", action: "get" },
 			mockOptions,
 		)) as { action: string };
@@ -51,7 +51,7 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = (await tool.execute!({ command: "help" }, mockOptions)) as {
+		const result = (await tool.execute?.({ command: "help" }, mockOptions)) as {
 			error: string;
 		};
 
@@ -63,7 +63,7 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = (await tool.execute!(
+		const result = (await tool.execute?.(
 			{ command: "exec", resource: "pets", action: "get" },
 			mockOptions,
 		)) as { error: string };
@@ -76,7 +76,7 @@ describe("specli tool", () => {
 		const spec = "https://petstore3.swagger.io/api/v3/openapi.json";
 		const tool = specli({ spec });
 
-		await tool.execute!({ command: "list" }, mockOptions);
+		await tool.execute?.({ command: "list" }, mockOptions);
 		clearSpecliCache(spec);
 		clearSpecliCache();
 	});
