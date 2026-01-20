@@ -6,6 +6,12 @@
 	"bin": {
 		"specli": "./cli.ts"
 	},
+	"files": [
+		"cli.ts",
+		"index.ts",
+		"src",
+		"!**/*.test.ts"
+	],
 	"scripts": {
 		"lint": "biome ci",
 		"lint:check": "biome check --write --unsafe",
