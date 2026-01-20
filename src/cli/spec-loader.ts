@@ -9,7 +9,6 @@ import type { LoadedSpec, OpenApiDoc, SpecSource } from "./types.ts";
 export type LoadSpecOptions = {
 	spec?: string;
 	embeddedSpecText?: string;
-	embeddedSpecObject?: unknown;
 };
 
 function isProbablyUrl(input: string): boolean {
@@ -26,26 +25,21 @@ function parseSpecText(text: string): unknown {
 }
 
 export async function loadSpec(options: LoadSpecOptions): Promise<LoadedSpec> {
-	const { spec, embeddedSpecText, embeddedSpecObject } = options;
+	const { spec, embeddedSpecText } = options;
 
 	let source: SpecSource;
 	let inputForParser: unknown;
 
-	if (typeof embeddedSpecObject !== "undefined") {
-		source = "embedded";
-		inputForParser = embeddedSpecObject;
-	} else if (typeof embeddedSpecText === "string") {
+	if (typeof embeddedSpecText === "string") {
 		source = "embedded";
 		inputForParser = parseSpecText(embeddedSpecText);
-	} else {
-		if (!spec) {
-			throw new Error(
-				"Missing spec. Provide --spec <url|path> or build with an embedded spec.",
-			);
-		}
-
+	} else if (spec) {
 		source = isProbablyUrl(spec) ? "url" : "file";
 		inputForParser = spec;
+	} else {
+		throw new Error(
+			"Missing spec. Provide --spec <url|path> or build with an embedded spec.",
+		);
 	}
 
 	const doc = (await SwaggerParser.dereference(

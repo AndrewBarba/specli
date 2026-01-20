@@ -17,14 +17,14 @@ import { stableStringify } from "./stable-json.ts";
 
 type MainOptions = {
 	embeddedSpecText?: string;
-	embeddedSpecObject?: unknown;
+	cliName?: string;
 };
 
 export async function main(argv: string[], options: MainOptions = {}) {
 	const program = new Command();
 
 	program
-		.name("opencli")
+		.name(options.cliName ?? "opencli")
 		.description("Generate a CLI from an OpenAPI spec")
 		.option("--spec <urlOrPath>", "OpenAPI URL or file path")
 		.option("--server <url>", "Override server/base URL")
@@ -67,12 +67,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 	// If user asks for help and we have no embedded spec and no --spec, show minimal help.
 	const spec = getArgValue(argv, "--spec");
 	const wantsHelp = hasAnyArg(argv, ["-h", "--help"]);
-	if (
-		!spec &&
-		!options.embeddedSpecObject &&
-		!options.embeddedSpecText &&
-		wantsHelp
-	) {
+	if (!spec && !options.embeddedSpecText && wantsHelp) {
 		program.addHelpText(
 			"after",
 			"\nTo see generated commands, run with --spec <url|path>.\n",
@@ -84,7 +79,6 @@ export async function main(argv: string[], options: MainOptions = {}) {
 	const ctx = await buildRuntimeContext({
 		spec,
 		embeddedSpecText: options.embeddedSpecText,
-		embeddedSpecObject: options.embeddedSpecObject,
 	});
 
 	const profileCmd = program

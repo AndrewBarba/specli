@@ -4,8 +4,8 @@ OpenCLI turns an OpenAPI spec into a non-interactive, “curl replacement” CLI
 
 It has two modes:
 
-- Runtime mode: point at a spec URL/path with `--spec`.
-- Embedded mode: bundle the spec into a standalone executable with `bun build --compile`.
+- **exec**: run commands dynamically from a spec URL/path.
+- **compile**: bundle the spec into a standalone executable.
 
 The guiding constraints:
 
@@ -33,72 +33,70 @@ It is not “universal OpenAPI support” yet. See “Limitations” for importa
 bun install
 ```
 
-## Quickstart (Runtime Mode)
+## Quickstart
 
 Inspect what commands will be generated:
 
 ```bash
-bun run ./src/entry.ts --spec ./fixtures/openapi.json __schema
+bunx opencli exec ./fixtures/openapi.json __schema
 ```
 
 Machine-readable schema output:
 
 ```bash
-bun run ./src/entry.ts --spec ./fixtures/openapi.json __schema --json
+bunx opencli exec ./fixtures/openapi.json __schema --json
 ```
 
 Minimal schema output (best for large specs):
 
 ```bash
-bun run ./src/entry.ts --spec ./fixtures/openapi.json __schema --json --min
+bunx opencli exec ./fixtures/openapi.json __schema --json --min
 ```
 
 Run a generated operation:
 
 ```bash
-bun run ./src/entry.ts --spec ./fixtures/openapi.json contacts list --curl
+bunx opencli exec ./fixtures/openapi.json contacts list --oc-curl
 ```
 
-## Build a Standalone Executable (Embedded Spec)
+## Build a Standalone Executable
 
-There are two ways to compile a single-file executable.
-
-### 1) Programmatic build (recommended)
-
-Use `src/compile.ts`, which calls `Bun.build()` directly.
+Use the `compile` command to create a standalone binary with the spec embedded:
 
 ```bash
-# local build for current platform
-bun run compile --spec ./path/to/openapi.yaml --outfile ./dist/opencli
+# compile with auto-derived name (from spec title)
+bunx opencli compile ./path/to/openapi.yaml
+# → ./dist/my-api (derived from info.title)
+
+# compile with explicit name
+bunx opencli compile ./path/to/openapi.yaml --name myapi
+# → ./dist/myapi
 
 # cross-compile (example: linux x64)
-bun run compile --spec https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/opencli-linux-x64
+bunx opencli compile https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/copper-linux
 
 # disable runtime config loading for deterministic behavior
-bun run compile --spec ./path/to/openapi.yaml --no-dotenv --no-bunfig --outfile ./dist/opencli
+bunx opencli compile ./path/to/openapi.yaml --no-dotenv --no-bunfig
 
 # bake in defaults (these become default flags; runtime flags override)
-bun run compile \
-  --spec https://api.vercel.com/copper/_openapi.json \
+bunx opencli compile https://api.vercel.com/copper/_openapi.json \
   --name copper \
-  --outfile ./dist/copper \
   --server https://api.vercel.com \
   --auth VercelOidc
 ```
 
-### 2) CLI build
-
-`src/entry-bundle.ts` uses a Bun macro (`with { type: "macro" }`) to load and inline a spec at bundle-time.
+The compiled binary is a root CLI - no `opencli` prefix needed:
 
 ```bash
-OPENCLI_EMBED_SPEC=./path/to/openapi.yaml bun build --compile ./src/entry-bundle.ts --outfile dist/opencli
-./dist/opencli __schema
+./dist/copper contacts list
+./dist/copper users get abc123 --json
 ```
 
 Notes:
 
-- Embedded mode removes the need for `--spec`.
-- When using `src/compile.ts`, the spec is embedded by setting `OPENCLI_EMBED_SPEC` for the macro.
+- The spec is embedded at compile-time using a Bun macro.
+- If `--name` is not provided, it is derived from the OpenAPI `info.title` or URL hostname.
+- Runtime flags (e.g., `--server`) override baked-in defaults.
 
 ## CLI Shape
 
@@ -118,7 +116,7 @@ Use `__schema` to see the planned mapping for your spec.
 
 Available on the root command:
 
-- `--spec <urlOrPath>`: OpenAPI URL or file path (runtime mode only)
+- `--spec <urlOrPath>`: OpenAPI URL or file path (only needed for compiled binaries to override embedded spec)
 - `--server <url>`: override server/base URL
 - `--server-var <name=value>`: server URL template variable (repeatable)
 - `--profile <name>`: profile name (config under `~/.config/opencli`)
@@ -257,7 +255,7 @@ When an operation has a `requestBody` and the preferred schema is a JSON object 
 Example (from `fixtures/openapi-body.json`):
 
 ```bash
-bun run ./src/entry.ts --spec ./fixtures/openapi-body.json contacts create --body-name "Ada" --curl
+bunx opencli exec ./fixtures/openapi-body.json contacts create --body-name "Ada" --oc-curl
 ```
 
 Produces a JSON body:
@@ -442,8 +440,8 @@ bun run smoke:specs
 Or run ad-hoc smoke tests:
 
 ```bash
-bun run ./src/entry.ts --spec <URL> __schema --json --min > /dev/null
-bun run ./src/entry.ts --spec <URL> <some-resource> <some-action> --curl
+bunx opencli exec <URL> __schema --json --min > /dev/null
+bunx opencli exec <URL> <some-resource> <some-action> --oc-curl
 ```
 
 Note: Kubernetes publishes a Swagger 2.0 document (`swagger.json`) which is not OpenAPI 3.x. OpenCLI currently expects `openapi: "3.x"` and will reject Swagger 2.0 specs.
@@ -472,5 +470,5 @@ Scripts:
 
 Repo entry points:
 
-- `src/entry.ts`: runtime mode
-- `src/entry-bundle.ts`: embedded/bundled mode
+- `cli.ts`: main CLI entry with `exec` and `compile` subcommands
+- `src/compiled.ts`: entry point for compiled binaries (embedded spec via Bun macro)

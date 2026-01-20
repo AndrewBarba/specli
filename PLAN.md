@@ -8,8 +8,8 @@ Example mapping:
 - `GET /contacts/{id}` -> `opencli contacts get <id>`
 
 The CLI must work in two modes:
-- Runtime mode (remote/local spec): `opencli --spec <url|path> ...`
-- Standalone mode (compiled executable): spec is embedded at build time and used by default
+- Runtime mode: `opencli exec <url|path> ...`
+- Standalone mode (compiled executable): `opencli compile <url|path>` embeds the spec at build time
 
 ## Design Principles
 - Deterministic: given the same spec + config, command names and flags are stable.
@@ -25,11 +25,11 @@ The CLI must work in two modes:
 
 ## Entry Points
 
-### 1) Runtime / "npx-style" entry
+### 1) Runtime / "exec" entry
 Intent: run the package directly and point it at a spec.
 
 Command:
-- `opencli --spec=https://example.com/openapi.json contacts list`
+- `opencli exec https://example.com/openapi.json contacts list`
 
 Notes:
 - In Bun ecosystems, `bunx opencli ...` is the direct equivalent of `npx opencli ...`.
@@ -39,15 +39,12 @@ Notes:
 Intent: ship a single executable that contains the spec.
 
 Build:
-- `bun build --compile src/entry-bundle.ts --outfile dist/opencli`
+- `opencli compile <spec> --name myapi`
 
 Behavior:
-- Default spec comes from an embedded module generated at build time.
+- Default spec comes from an embedded module generated at build time via Bun macro.
 - Still allow overriding spec at runtime (`--spec`) for debugging unless explicitly disabled.
-
-Embedding approach (recommended):
-- Generate `src/embedded/openapi.ts` exporting `embeddedSpecText` (string) or `embeddedSpec` (object).
-- `src/entry-bundle.ts` imports this module and passes it to the shared CLI implementation.
+- The compiled binary name becomes the CLI root (e.g., `./dist/myapi contacts list`).
 
 ## High-Level Architecture
 
@@ -264,7 +261,7 @@ Phase 5: Auth + profiles
 - Keychain-backed secret storage.
 
 Phase 6: Standalone bundling
-- Add `entry-bundle.ts` + embedded spec generator.
+- Add `compile` command with Bun macro-based spec embedding.
 - Document build steps.
 
 ## Testing

@@ -11,14 +11,12 @@ import { loadSpec } from "../spec-loader.ts";
 export type BuildRuntimeContextOptions = {
 	spec?: string;
 	embeddedSpecText?: string;
-	embeddedSpecObject?: unknown;
 };
 
 export async function buildRuntimeContext(options: BuildRuntimeContextOptions) {
 	const loaded = await loadSpec({
 		spec: options.spec,
 		embeddedSpecText: options.embeddedSpecText,
-		embeddedSpecObject: options.embeddedSpecObject,
 	});
 
 	const operations = indexOperations(loaded.doc);

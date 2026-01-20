@@ -35,7 +35,7 @@ for (const spec of specs) {
 	const start = performance.now();
 	try {
 		console.log(spec.url);
-		await Bun.$`bun ./src/entry.ts --spec ${spec.url} __schema --json --min > /dev/null`;
+		await Bun.$`bun ./cli.ts exec ${spec.url} __schema --json --min > /dev/null`;
 		results.push({
 			spec: spec.name,
 			ok: true,
