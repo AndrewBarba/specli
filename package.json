@@ -1,12 +1,12 @@
 {
 	"name": "specli",
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"specli": "./dist/cli.js"
+		"specli": "./bin/specli.js"
 	},
 	"exports": {
 		".": {
