@@ -65,18 +65,23 @@ export async function compileCommand(
 
 	buildArgs.push("./src/compiled.ts");
 
+	// Only set env vars that have actual values - avoid empty strings
+	// because the macros will embed them and they will override defaults.
+	const buildEnv: Record<string, string> = {
+		...process.env,
+		SPECLI_SPEC: spec,
+		SPECLI_NAME: name,
+	};
+	if (options.server) buildEnv.SPECLI_SERVER = options.server;
+	if (options.serverVar?.length)
+		buildEnv.SPECLI_SERVER_VARS = options.serverVar.join(",");
+	if (options.auth) buildEnv.SPECLI_AUTH = options.auth;
+
 	const proc = Bun.spawn({
 		cmd: ["bun", ...buildArgs],
 		stdout: "pipe",
 		stderr: "pipe",
-		env: {
-			...process.env,
-			SPECLI_SPEC: spec,
-			SPECLI_NAME: name,
-			SPECLI_SERVER: options.server ?? "",
-			SPECLI_SERVER_VARS: options.serverVar?.join(",") ?? "",
-			SPECLI_AUTH: options.auth ?? "",
-		},
+		env: buildEnv,
 	});
 
 	const output = await new Response(proc.stdout).text();

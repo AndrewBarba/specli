@@ -9,7 +9,8 @@ export type ResolveServerInput = {
 };
 
 export function resolveServerUrl(input: ResolveServerInput): string {
-	const base = input.serverOverride ?? input.servers[0]?.url;
+	// Treat empty string as undefined (serverOverride can come from env vars or profiles)
+	const base = input.serverOverride || input.servers[0]?.url;
 	if (!base) {
 		throw new Error(
 			"No server URL found. Provide --server <url> or define servers in the OpenAPI spec.",

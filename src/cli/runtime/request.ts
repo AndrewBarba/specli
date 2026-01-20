@@ -188,10 +188,12 @@ export async function buildRequest(
 
 	const path = applyTemplate(input.action.path, pathVars, { encode: true });
 
-	const url = new URL(
-		path,
-		serverUrl.endsWith("/") ? serverUrl : `${serverUrl}/`,
-	);
+	// Build the full URL by combining server URL and path.
+	// We need to handle the case where path starts with "/" carefully:
+	// URL constructor treats absolute paths as relative to origin, not base path.
+	const baseUrl = serverUrl.endsWith("/") ? serverUrl : `${serverUrl}/`;
+	const relativePath = path.startsWith("/") ? path.slice(1) : path;
+	const url = new URL(relativePath, baseUrl);
 
 	const headers = new Headers();
 
