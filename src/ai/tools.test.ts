@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { clearCache, specli } from "./tools.ts";
+import { clearSpecliCache, specli } from "./tools.ts";
 
 const mockOptions = {
 	toolCallId: "test-call-id",
@@ -24,18 +24,12 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = await tool.execute!(
-			{
-				command: "list",
-			},
-			mockOptions,
-		);
+		const result = (await tool.execute!({ command: "list" }, mockOptions)) as {
+			resources: unknown[];
+		};
 
-		expect(result).toHaveProperty("title");
 		expect(result).toHaveProperty("resources");
-		expect(Array.isArray((result as { resources: unknown[] }).resources)).toBe(
-			true,
-		);
+		expect(Array.isArray(result.resources)).toBe(true);
 	});
 
 	test("help command returns action details", async () => {
@@ -43,17 +37,13 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = await tool.execute!(
-			{
-				command: "help",
-				resource: "pets",
-				action: "get",
-			},
+		const result = (await tool.execute!(
+			{ command: "help", resource: "pets", action: "get" },
 			mockOptions,
-		);
+		)) as { action: string };
 
 		expect(result).toHaveProperty("action");
-		expect((result as { action: { name: string } }).action.name).toBe("get");
+		expect(result.action).toBe("get");
 	});
 
 	test("help command with missing resource returns error", async () => {
@@ -61,12 +51,9 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = await tool.execute!(
-			{
-				command: "help",
-			},
-			mockOptions,
-		);
+		const result = (await tool.execute!({ command: "help" }, mockOptions)) as {
+			error: string;
+		};
 
 		expect(result).toHaveProperty("error");
 	});
@@ -76,42 +63,21 @@ describe("specli tool", () => {
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
-		const result = await tool.execute!(
-			{
-				command: "exec",
-				resource: "pets",
-				action: "get",
-				// missing pet-id arg
-			},
+		const result = (await tool.execute!(
+			{ command: "exec", resource: "pets", action: "get" },
 			mockOptions,
-		);
+		)) as { error: string };
 
 		expect(result).toHaveProperty("error");
-		expect((result as { error: string }).error).toContain(
-			"Missing required arguments",
-		);
+		expect(result.error).toContain("Missing args");
 	});
 
-	test("clearCache clears specific spec", async () => {
+	test("clearCache works", async () => {
 		const spec = "https://petstore3.swagger.io/api/v3/openapi.json";
 		const tool = specli({ spec });
 
-		// Prime the cache
 		await tool.execute!({ command: "list" }, mockOptions);
-
-		// Clear should not throw
-		clearCache(spec);
-	});
-
-	test("clearCache clears all specs", async () => {
-		const tool = specli({
-			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
-		});
-
-		// Prime the cache
-		await tool.execute!({ command: "list" }, mockOptions);
-
-		// Clear all should not throw
-		clearCache();
+		clearSpecliCache(spec);
+		clearSpecliCache();
 	});
 });

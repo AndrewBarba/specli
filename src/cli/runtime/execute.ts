@@ -17,6 +17,13 @@ export type ExecuteInput = {
 	resourceName?: string;
 };
 
+export type ExecuteResult = {
+	ok: boolean;
+	status: number;
+	body: unknown;
+	curl: string;
+};
+
 /**
  * Format an error message with a help hint.
  */
@@ -31,52 +38,83 @@ function formatError(
 	return `${message}\n\nRun '${helpCmd}' to see available options.`;
 }
 
+/**
+ * Execute an action and return the result as data.
+ * This is the core execution function used by both CLI and programmatic API.
+ */
+export async function execute(
+	input: Omit<ExecuteInput, "resourceName">,
+): Promise<ExecuteResult> {
+	const { request, curl } = await buildRequest({
+		specId: input.specId,
+		action: input.action,
+		positionalValues: input.positionalValues,
+		flagValues: input.flagValues,
+		globals: input.globals,
+		servers: input.servers,
+		authSchemes: input.authSchemes,
+		embeddedDefaults: input.embeddedDefaults,
+		bodyFlagDefs: input.bodyFlagDefs,
+	});
+
+	const res = await fetch(request);
+	const contentType = res.headers.get("content-type") ?? "";
+
+	const text = await res.text();
+	let body: unknown = text;
+
+	if (contentType.includes("json") && text) {
+		try {
+			body = JSON.parse(text);
+		} catch {
+			// keep as text
+		}
+	}
+
+	return {
+		ok: res.ok,
+		status: res.status,
+		body,
+		curl,
+	};
+}
+
+/**
+ * Execute an action and write output to stdout/stderr.
+ * This is the CLI-facing wrapper around execute().
+ */
 export async function executeAction(input: ExecuteInput): Promise<void> {
 	const actionName = input.action.action;
 	const resourceName = input.resourceName;
 
 	try {
-		const { request, curl } = await buildRequest({
-			specId: input.specId,
-			action: input.action,
-			positionalValues: input.positionalValues,
-			flagValues: input.flagValues,
-			globals: input.globals,
-			servers: input.servers,
-			authSchemes: input.authSchemes,
-			embeddedDefaults: input.embeddedDefaults,
-			bodyFlagDefs: input.bodyFlagDefs,
-		});
-
 		if (input.globals.curl) {
+			const { curl } = await buildRequest({
+				specId: input.specId,
+				action: input.action,
+				positionalValues: input.positionalValues,
+				flagValues: input.flagValues,
+				globals: input.globals,
+				servers: input.servers,
+				authSchemes: input.authSchemes,
+				embeddedDefaults: input.embeddedDefaults,
+				bodyFlagDefs: input.bodyFlagDefs,
+			});
 			process.stdout.write(`${curl}\n`);
 			return;
 		}
 
-		const res = await fetch(request);
-		const contentType = res.headers.get("content-type") ?? "";
-		const status = res.status;
+		const result = await execute(input);
 
-		const text = await res.text();
-		let body: unknown = text;
-		let parsedJson: unknown | undefined;
-
-		if (contentType.includes("json")) {
-			try {
-				parsedJson = text ? JSON.parse(text) : null;
-				body = parsedJson;
-			} catch {
-				// keep as text
-			}
-		}
-
-		if (!res.ok) {
+		if (!result.ok) {
 			if (input.globals.json) {
-				process.stdout.write(`${JSON.stringify({ status, body })}\n`);
+				process.stdout.write(
+					`${JSON.stringify({ status: result.status, body: result.body })}\n`,
+				);
 			} else {
-				process.stderr.write(`HTTP ${status}\n`);
+				process.stderr.write(`HTTP ${result.status}\n`);
 				process.stderr.write(
-					`${typeof body === "string" ? body : JSON.stringify(body, null, 2)}\n`,
+					`${typeof result.body === "string" ? result.body : JSON.stringify(result.body, null, 2)}\n`,
 				);
 			}
 			process.exitCode = 1;
@@ -84,16 +122,16 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 		}
 
 		if (input.globals.json) {
-			process.stdout.write(`${JSON.stringify(body)}\n`);
+			process.stdout.write(`${JSON.stringify(result.body)}\n`);
 			return;
 		}
 
 		// default (human + agent readable)
-		if (typeof parsedJson !== "undefined") {
-			process.stdout.write(`${JSON.stringify(parsedJson, null, 2)}\n`);
+		if (typeof result.body === "string") {
+			process.stdout.write(result.body);
+			if (!result.body.endsWith("\n")) process.stdout.write("\n");
 		} else {
-			process.stdout.write(text);
-			if (!text.endsWith("\n")) process.stdout.write("\n");
+			process.stdout.write(`${JSON.stringify(result.body, null, 2)}\n`);
 		}
 	} catch (err) {
 		const rawMessage = err instanceof Error ? err.message : String(err);
