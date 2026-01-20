@@ -1,22 +1,39 @@
 {
 	"name": "specli",
-	"module": "index.ts",
+	"version": "0.0.7",
 	"type": "module",
-	"version": "0.0.6",
+	"main": "./dist/index.js",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"bin": {
-		"specli": "./cli.ts"
+		"specli": "./dist/cli.js"
 	},
 	"exports": {
-		".": "./index.ts",
-		"./ai/tools": "./src/ai/tools.ts"
+		".": {
+			"bun": "./index.ts",
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		},
+		"./ai/tools": {
+			"bun": "./src/ai/tools.ts",
+			"import": {
+				"types": "./dist/src/ai/tools.d.ts",
+				"default": "./dist/src/ai/tools.js"
+			}
+		}
 	},
 	"files": [
+		"dist",
 		"cli.ts",
 		"index.ts",
 		"src",
 		"!**/*.test.ts"
 	],
 	"scripts": {
+		"build": "bun run scripts/build.ts",
+		"prepublishOnly": "bun run build",
 		"lint": "biome ci",
 		"lint:check": "biome check --write --unsafe",
 		"lint:format": "biome format --write",
