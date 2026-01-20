@@ -13,9 +13,28 @@ export type ExecuteInput = {
 	specId: string;
 	embeddedDefaults?: EmbeddedDefaults;
 	bodyFlagDefs?: BodyFlagDef[];
+	/** Resource name for error messages (e.g. "plans") */
+	resourceName?: string;
 };
 
+/**
+ * Format an error message with a help hint.
+ */
+function formatError(
+	message: string,
+	resourceName: string | undefined,
+	actionName: string,
+): string {
+	const helpCmd = resourceName
+		? `${resourceName} ${actionName} --help`
+		: `${actionName} --help`;
+	return `${message}\n\nRun '${helpCmd}' to see available options.`;
+}
+
 export async function executeAction(input: ExecuteInput): Promise<void> {
+	const actionName = input.action.action;
+	const resourceName = input.resourceName;
+
 	try {
 		const { request, curl } = await buildRequest({
 			specId: input.specId,
@@ -77,9 +96,11 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 			if (!text.endsWith("\n")) process.stdout.write("\n");
 		}
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
+		const rawMessage = err instanceof Error ? err.message : String(err);
+		const message = formatError(rawMessage, resourceName, actionName);
+
 		if (input.globals.json) {
-			process.stdout.write(`${JSON.stringify({ error: message })}\n`);
+			process.stdout.write(`${JSON.stringify({ error: rawMessage })}\n`);
 		} else {
 			process.stderr.write(`error: ${message}\n`);
 		}

@@ -275,9 +275,18 @@ export async function buildRequest(
 
 		const schema = input.action.requestBodySchema;
 
+		// Check if there are any required fields in the body
+		const requiredFields = bodyFlagDefs.filter((d) => d.required);
+
 		if (!hasBodyFlags) {
+			if (requiredFields.length > 0) {
+				// Error: user must provide required fields
+				const flagList = requiredFields.map((d) => `--${d.path.join(".")}`);
+				throw new Error(`Required: ${flagList.join(", ")}`);
+			}
+			// No required fields - send empty body if body is required, otherwise skip
 			if (input.action.requestBody.required) {
-				throw new Error("Missing required request body fields.");
+				body = "{}";
 			}
 		} else {
 			if (!contentType?.includes("json")) {
@@ -292,9 +301,8 @@ export async function buildRequest(
 			);
 			const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
 			if (missing.length > 0) {
-				throw new Error(
-					`Missing required body field '${missing[0]}'. Provide --${missing[0]}.`,
-				);
+				const missingFlags = missing.map((m) => `--${m}`).join(", ");
+				throw new Error(`Missing required fields: ${missingFlags}`);
 			}
 
 			// Build nested object from dot-notation flags

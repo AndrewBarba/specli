@@ -1,13 +1,113 @@
 import { Command } from "commander";
 
 import type { AuthScheme } from "../auth-schemes.ts";
-import type { CommandModel } from "../command-model.ts";
+import type { CommandAction, CommandModel } from "../command-model.ts";
 import type { ServerInfo } from "../server.ts";
 
 import { type BodyFlagDef, generateBodyFlags } from "./body-flags.ts";
 import { executeAction } from "./execute.ts";
 import type { EmbeddedDefaults } from "./request.ts";
 import { coerceArrayInput, coerceValue } from "./validate/index.ts";
+
+// Flag type from CommandAction
+type CommandFlag = CommandAction["flags"][number];
+
+/**
+ * Format help output that is clear for both humans and AI agents.
+ * Groups options into Required, Optional, and Global sections.
+ */
+function formatCustomHelp(
+	cmd: Command,
+	action: CommandAction,
+	operationFlags: CommandFlag[],
+	bodyFlagDefs: BodyFlagDef[],
+): string {
+	const lines: string[] = [];
+	const cmdName = cmd.name();
+	const parentName = cmd.parent?.name() ?? "";
+	const fullCmd = parentName ? `${parentName} ${cmdName}` : cmdName;
+
+	// Usage line
+	const positionals = action.positionals.map((p) => `<${p.name}>`).join(" ");
+	const usageSuffix = positionals ? ` ${positionals}` : "";
+	lines.push(`Usage: ${fullCmd}${usageSuffix} [options]`);
+	lines.push("");
+
+	// Description
+	const desc =
+		action.summary ?? action.description ?? `${action.method} ${action.path}`;
+	lines.push(desc);
+	lines.push("");
+
+	// Collect all options into categories
+	const requiredOpts: string[] = [];
+	const optionalOpts: string[] = [];
+
+	// Format a single option line
+	const formatOpt = (
+		flag: string,
+		type: string,
+		desc: string,
+		required: boolean,
+	): string => {
+		const typeStr = type === "boolean" ? "" : ` <${type}>`;
+		const reqMarker = required ? " (required)" : "";
+		return `  ${flag}${typeStr}${reqMarker}\n      ${desc}`;
+	};
+
+	// Operation flags (query/header/path params)
+	for (const f of operationFlags) {
+		const type = f.type === "array" ? `${f.itemType ?? "string"}[]` : f.type;
+		const line = formatOpt(
+			f.flag,
+			type,
+			f.description ?? `${f.in} parameter`,
+			f.required,
+		);
+		if (f.required) {
+			requiredOpts.push(line);
+		} else {
+			optionalOpts.push(line);
+		}
+	}
+
+	// Body flags
+	for (const def of bodyFlagDefs) {
+		const line = formatOpt(def.flag, def.type, def.description, def.required);
+		if (def.required) {
+			requiredOpts.push(line);
+		} else {
+			optionalOpts.push(line);
+		}
+	}
+
+	// Required options section
+	if (requiredOpts.length > 0) {
+		lines.push("Required:");
+		lines.push(...requiredOpts);
+		lines.push("");
+	}
+
+	// Optional options section
+	if (optionalOpts.length > 0) {
+		lines.push("Options:");
+		lines.push(...optionalOpts);
+		lines.push("");
+	}
+
+	// Global options (always available)
+	lines.push("Global:");
+	lines.push("  --curl\n      Print curl command instead of executing");
+	lines.push("  --json\n      Output response as JSON");
+	lines.push("  --server <url>\n      Override the API server URL");
+	lines.push(
+		"  --bearer-token <token>\n      Provide auth token (or use 'login' command)",
+	);
+	lines.push("  -h, --help\n      Show this help message");
+	lines.push("");
+
+	return lines.join("\n");
+}
 
 export type GeneratedCliContext = {
 	servers: ServerInfo[];
@@ -78,11 +178,11 @@ export function addGeneratedCommands(
 			}
 
 			// Collect reserved flags: operation params + --curl
-			const operationFlags = new Set(action.flags.map((f) => f.flag));
-			const reservedFlags = new Set([...operationFlags, "--curl"]);
+			const operationFlagSet = new Set(action.flags.map((f) => f.flag));
+			const reservedFlags = new Set([...operationFlagSet, "--curl"]);
 
 			// Only --curl is a built-in flag (for debugging)
-			if (!operationFlags.has("--curl")) {
+			if (!operationFlagSet.has("--curl")) {
 				cmd.option("--curl", "Print curl command without sending");
 			}
 
@@ -106,6 +206,12 @@ export function addGeneratedCommands(
 				}
 			}
 
+			// Custom help output for better agent/human readability
+			cmd.configureHelp({
+				formatHelp: () =>
+					formatCustomHelp(cmd, action, action.flags, bodyFlagDefs),
+			});
+
 			// Commander passes positional args and then the Command instance as last arg.
 			cmd.action(async (...args) => {
 				const command = args[args.length - 1];
@@ -128,6 +234,7 @@ export function addGeneratedCommands(
 					specId: context.specId,
 					embeddedDefaults: context.embeddedDefaults,
 					bodyFlagDefs,
+					resourceName: resource.resource,
 				});
 			});
 		}

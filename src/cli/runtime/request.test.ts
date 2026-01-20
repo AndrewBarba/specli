@@ -113,7 +113,7 @@ describe("buildRequest (requestBody)", () => {
 					authSchemes: [],
 					bodyFlagDefs,
 				}),
-			).toThrow("Missing required request body fields.");
+			).toThrow("Required: --name");
 		} finally {
 			process.env.HOME = prevHome;
 		}
@@ -159,7 +159,7 @@ describe("buildRequest (requestBody)", () => {
 					authSchemes: [],
 					bodyFlagDefs,
 				}),
-			).toThrow("Missing required body field 'name'. Provide --name.");
+			).toThrow("Missing required fields: --name");
 		} finally {
 			process.env.HOME = prevHome;
 		}
