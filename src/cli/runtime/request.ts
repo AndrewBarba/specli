@@ -26,8 +26,6 @@ export type RuntimeGlobals = {
 	username?: string;
 	password?: string;
 	apiKey?: string;
-
-	profile?: string;
 };
 
 function parseKeyValuePairs(
@@ -155,8 +153,10 @@ export type BuildRequestInput = {
 export async function buildRequest(
 	input: BuildRequestInput,
 ): Promise<{ request: Request; curl: string }> {
+	// Always use the "default" profile for simplicity
+	const defaultProfileName = "default";
 	const profilesFile = await readProfiles();
-	const profile = getProfile(profilesFile, input.globals.profile);
+	const profile = getProfile(profilesFile, defaultProfileName);
 	const embedded = input.embeddedDefaults;
 
 	// Merge server vars: CLI flags override embedded defaults
@@ -311,6 +311,11 @@ export async function buildRequest(
 		}
 	}
 
+	// Check if user has a stored token (needed for auth scheme auto-selection)
+	const storedToken = profile?.name
+		? await getToken(input.specId, profile.name)
+		: null;
+
 	// Auth resolution priority: CLI flag > profile > embedded default
 	const resolvedAuthScheme = resolveAuthScheme(
 		input.authSchemes,
@@ -319,13 +324,11 @@ export async function buildRequest(
 			flagAuthScheme: input.globals.auth,
 			profileAuthScheme: profile?.authScheme,
 			embeddedAuthScheme: embedded?.auth,
+			hasStoredToken: Boolean(storedToken),
 		},
 	);
 
-	const tokenFromProfile =
-		profile?.name && resolvedAuthScheme
-			? await getToken(input.specId, profile.name)
-			: null;
+	const tokenFromProfile = resolvedAuthScheme ? storedToken : null;
 
 	const globalsWithProfileAuth: RuntimeGlobals = {
 		...input.globals,

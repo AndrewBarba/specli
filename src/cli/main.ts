@@ -6,9 +6,7 @@ import { buildRuntimeContext } from "./runtime/context.ts";
 import { addGeneratedCommands } from "./runtime/generated.ts";
 import { deleteToken, getToken, setToken } from "./runtime/profile/secrets.ts";
 import {
-	getProfile,
 	readProfiles,
-	removeProfile,
 	upsertProfile,
 	writeProfiles,
 } from "./runtime/profile/store.ts";
@@ -42,7 +40,6 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--username <username>", "Basic auth username")
 		.option("--password <password>", "Basic auth password")
 		.option("--api-key <key>", "API key value")
-		.option("--profile <name>", "Profile name (stored under ~/.config/specli)")
 		.option("--json", "Machine-readable output")
 		.showHelpAfterError();
 
@@ -63,197 +60,109 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		embeddedSpecText: options.embeddedSpecText,
 	});
 
-	const profileCmd = program
-		.command("profile")
-		.description("Manage specli profiles");
+	// Simple auth commands
+	const defaultProfileName = "default";
 
-	profileCmd
-		.command("list")
-		.description("List profiles")
+	program
+		.command("login [token]")
+		.description("Store a bearer token for authentication")
+		.action(async (tokenArg: string | undefined, _opts, command) => {
+			const globals = command.optsWithGlobals() as { json?: boolean };
+
+			let token = tokenArg;
+
+			// If no token argument, try to read from stdin (for piping)
+			if (!token) {
+				const isTTY = process.stdin.isTTY;
+				if (isTTY) {
+					// Interactive mode - prompt user
+					process.stdout.write("Enter token: ");
+					const reader = process.stdin;
+					const chunks: Buffer[] = [];
+					for await (const chunk of reader) {
+						chunks.push(chunk);
+						// Read one line only
+						if (chunk.includes(10)) break; // newline
+					}
+					token = Buffer.concat(chunks).toString().trim();
+				} else {
+					// Piped input - use Bun's stdin stream
+					const text = await Bun.stdin.text();
+					token = text.trim();
+				}
+			}
+
+			if (!token) {
+				throw new Error(
+					"No token provided. Usage: login <token> or echo $TOKEN | login",
+				);
+			}
+
+			// Ensure default profile exists
+			const file = await readProfiles();
+			if (!file.profiles.find((p) => p.name === defaultProfileName)) {
+				const updated = upsertProfile(file, { name: defaultProfileName });
+				await writeProfiles({ ...updated, defaultProfile: defaultProfileName });
+			} else if (!file.defaultProfile) {
+				await writeProfiles({ ...file, defaultProfile: defaultProfileName });
+			}
+
+			await setToken(ctx.loaded.id, defaultProfileName, token);
+
+			if (globals.json) {
+				process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
+				return;
+			}
+			process.stdout.write("ok: logged in\n");
+		});
+
+	program
+		.command("logout")
+		.description("Clear stored authentication token")
 		.action(async (_opts, command) => {
 			const globals = command.optsWithGlobals() as { json?: boolean };
-			const file = await readProfiles();
 
-			const payload = {
-				defaultProfile: file.defaultProfile,
-				profiles: file.profiles.map((p) => ({
-					name: p.name,
-					server: p.server,
-					authScheme: p.authScheme,
-				})),
-			};
+			const deleted = await deleteToken(ctx.loaded.id, defaultProfileName);
 
 			if (globals.json) {
-				process.stdout.write(`${JSON.stringify(payload)}\n`);
+				process.stdout.write(`${JSON.stringify({ ok: deleted })}\n`);
 				return;
 			}
-
-			if (payload.defaultProfile) {
-				process.stdout.write(`default: ${payload.defaultProfile}\n`);
-			}
-			for (const p of payload.profiles) {
-				process.stdout.write(`${p.name}\n`);
-				if (p.server) process.stdout.write(`  server: ${p.server}\n`);
-				if (p.authScheme)
-					process.stdout.write(`  authScheme: ${p.authScheme}\n`);
-			}
+			process.stdout.write(
+				deleted ? "ok: logged out\n" : "ok: not logged in\n",
+			);
 		});
 
-	profileCmd
-		.command("set")
-		.description("Create or update a profile")
-		.requiredOption("--name <name>", "Profile name")
-		.option("--server <url>", "Default server/base URL")
-		.option("--auth <scheme>", "Default auth scheme key")
-		.option("--default", "Set as default profile")
-		.action(async (opts, command) => {
-			const globals = command.optsWithGlobals() as {
-				json?: boolean;
-				server?: string;
-				auth?: string;
-			};
-
-			const file = await readProfiles();
-			const next = upsertProfile(file, {
-				name: String(opts.name),
-				server:
-					typeof opts.server === "string"
-						? opts.server
-						: typeof globals.server === "string"
-							? globals.server
-							: undefined,
-				authScheme:
-					typeof opts.auth === "string"
-						? opts.auth
-						: typeof globals.auth === "string"
-							? globals.auth
-							: undefined,
-			});
-			const final = opts.default
-				? { ...next, defaultProfile: String(opts.name) }
-				: next;
-			await writeProfiles(final);
-
-			if (globals.json) {
-				process.stdout.write(
-					`${JSON.stringify({ ok: true, profile: String(opts.name) })}\n`,
-				);
-				return;
-			}
-			process.stdout.write(`ok: profile ${String(opts.name)}\n`);
-		});
-
-	profileCmd
-		.command("rm")
-		.description("Remove a profile")
-		.requiredOption("--name <name>", "Profile name")
-		.action(async (opts, command) => {
+	program
+		.command("whoami")
+		.description("Show current authentication status")
+		.action(async (_opts, command) => {
 			const globals = command.optsWithGlobals() as { json?: boolean };
-			const file = await readProfiles();
-			const removed = removeProfile(file, String(opts.name));
 
-			const final =
-				file.defaultProfile === opts.name
-					? { ...removed, defaultProfile: undefined }
-					: removed;
+			const token = await getToken(ctx.loaded.id, defaultProfileName);
+			const hasToken = Boolean(token);
 
-			await writeProfiles(final);
+			// Mask the token for display (show first 8 and last 4 chars)
+			let maskedToken: string | null = null;
+			if (token && token.length > 16) {
+				maskedToken = `${token.slice(0, 8)}...${token.slice(-4)}`;
+			} else if (token) {
+				maskedToken = `${token.slice(0, 4)}...`;
+			}
 
 			if (globals.json) {
 				process.stdout.write(
-					`${JSON.stringify({ ok: true, profile: String(opts.name) })}\n`,
+					`${JSON.stringify({ authenticated: hasToken, token: maskedToken })}\n`,
 				);
 				return;
 			}
 
-			process.stdout.write(`ok: removed ${String(opts.name)}\n`);
-		});
-
-	profileCmd
-		.command("use")
-		.description("Set the default profile")
-		.requiredOption("--name <name>", "Profile name")
-		.action(async (opts, command) => {
-			const globals = command.optsWithGlobals() as { json?: boolean };
-			const file = await readProfiles();
-			const profile = getProfile(file, String(opts.name));
-			if (!profile) throw new Error(`Profile not found: ${String(opts.name)}`);
-
-			await writeProfiles({ ...file, defaultProfile: String(opts.name) });
-
-			if (globals.json) {
-				process.stdout.write(
-					`${JSON.stringify({ ok: true, defaultProfile: String(opts.name) })}\n`,
-				);
-				return;
-			}
-			process.stdout.write(`ok: default ${String(opts.name)}\n`);
-		});
-
-	const authCmd = program.command("auth").description("Manage auth secrets");
-
-	authCmd
-		.command("token")
-		.description("Set or get bearer token for a profile")
-		.option("--name <name>", "Profile name (defaults to global --profile)")
-		.option("--set <token>", "Set token")
-		.option("--get", "Get token")
-		.option("--delete", "Delete token")
-		.action(async (opts, command) => {
-			const globals = command.optsWithGlobals() as {
-				json?: boolean;
-				profile?: string;
-			};
-
-			const profileName = String(opts.name ?? globals.profile ?? "");
-			if (!profileName) {
-				throw new Error(
-					"Missing profile name. Provide --name <name> or global --profile <name>.",
-				);
-			}
-			if (opts.set && (opts.get || opts.delete)) {
-				throw new Error("Use only one of --set, --get, --delete");
-			}
-			if (opts.get && opts.delete) {
-				throw new Error("Use only one of --get or --delete");
-			}
-			if (!opts.set && !opts.get && !opts.delete) {
-				throw new Error("Provide one of --set, --get, --delete");
-			}
-
-			if (typeof opts.set === "string") {
-				await setToken(ctx.loaded.id, profileName, opts.set);
-				if (globals.json) {
-					process.stdout.write(
-						`${JSON.stringify({ ok: true, profile: profileName })}\n`,
-					);
-					return;
-				}
-				process.stdout.write(`ok: token set for ${profileName}\n`);
-				return;
-			}
-
-			if (opts.get) {
-				const token = await getToken(ctx.loaded.id, profileName);
-				if (globals.json) {
-					process.stdout.write(
-						`${JSON.stringify({ profile: profileName, token })}\n`,
-					);
-					return;
-				}
-				process.stdout.write(`${token ?? ""}\n`);
-				return;
-			}
-
-			if (opts.delete) {
-				const ok = await deleteToken(ctx.loaded.id, profileName);
-				if (globals.json) {
-					process.stdout.write(
-						`${JSON.stringify({ ok, profile: profileName })}\n`,
-					);
-					return;
-				}
-				process.stdout.write(`ok: ${ok ? "deleted" : "not-found"}\n`);
+			if (hasToken) {
+				process.stdout.write(`authenticated: yes\n`);
+				process.stdout.write(`token: ${maskedToken}\n`);
+			} else {
+				process.stdout.write(`authenticated: no\n`);
+				process.stdout.write(`Run 'login <token>' to authenticate.\n`);
 			}
 		});
 
