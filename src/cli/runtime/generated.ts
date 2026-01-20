@@ -50,7 +50,8 @@ export function addGeneratedCommands(
 
 				const isArray = flag.type === "array";
 				const itemType = flag.itemType ?? "string";
-				const parser = (raw: string) => coerceValue(raw, itemType);
+				const flagType = isArray ? itemType : flag.type;
+				const parser = (raw: string) => coerceValue(raw, flagType);
 
 				if (isArray) {
 					const key = `${opt} <value>`;

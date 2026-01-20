@@ -228,6 +228,141 @@ describe("buildRequest (requestBody)", () => {
 	});
 });
 
+describe("buildRequest (query parameters)", () => {
+	test("builds query string from flag values", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action: CommandAction = {
+				id: "test",
+				key: "GET /contacts",
+				action: "list",
+				pathArgs: [],
+				method: "GET",
+				path: "/contacts",
+				tags: [],
+				style: "rest",
+				positionals: [],
+				flags: [
+					{
+						flag: "--limit",
+						name: "limit",
+						in: "query",
+						type: "integer",
+						required: false,
+					},
+					{
+						flag: "--name",
+						name: "name",
+						in: "query",
+						type: "string",
+						required: false,
+					},
+				],
+				params: [
+					{
+						kind: "flag",
+						flag: "--limit",
+						name: "limit",
+						in: "query",
+						required: false,
+						type: "integer",
+					},
+					{
+						kind: "flag",
+						flag: "--name",
+						name: "name",
+						in: "query",
+						required: false,
+						type: "string",
+					},
+				],
+				auth: { alternatives: [] },
+			};
+
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { limit: 10, name: "andrew" },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+			});
+
+			expect(request.method).toBe("GET");
+			expect(request.url).toBe(
+				"https://api.example.com/contacts?limit=10&name=andrew",
+			);
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("handles array query parameters", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action: CommandAction = {
+				id: "test",
+				key: "GET /contacts",
+				action: "list",
+				pathArgs: [],
+				method: "GET",
+				path: "/contacts",
+				tags: [],
+				style: "rest",
+				positionals: [],
+				flags: [
+					{
+						flag: "--tag",
+						name: "tag",
+						in: "query",
+						type: "array",
+						itemType: "string",
+						required: false,
+					},
+				],
+				params: [
+					{
+						kind: "flag",
+						flag: "--tag",
+						name: "tag",
+						in: "query",
+						required: false,
+						type: "array",
+					},
+				],
+				auth: { alternatives: [] },
+			};
+
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { tag: ["vip", "active"] },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+			});
+
+			expect(request.url).toBe(
+				"https://api.example.com/contacts?tag=vip&tag=active",
+			);
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+});
+
 describe("formatAjvErrors", () => {
 	test("pretty prints required errors", () => {
 		const ajv = createAjv();
