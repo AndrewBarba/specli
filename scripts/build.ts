@@ -177,7 +177,7 @@ async function addShebang() {
 	if (!content.startsWith("#!")) {
 		content = `#!/usr/bin/env node\n${content}`;
 		await Bun.write(cliPath, content);
-	}
+  }
 }
 
 async function main() {
