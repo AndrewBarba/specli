@@ -2,8 +2,6 @@ import type { AuthScheme } from "../auth-schemes.ts";
 import type { CommandAction } from "../command-model.ts";
 
 import { resolveAuthScheme } from "./auth/resolve.ts";
-import { loadBody, parseBodyAsJsonOrYaml } from "./body.ts";
-import { parseHeaderInput } from "./headers.ts";
 import { getToken } from "./profile/secrets.ts";
 import { getProfile, readProfiles } from "./profile/store.ts";
 import { resolveServerUrl } from "./server-url.ts";
@@ -19,18 +17,7 @@ export type RuntimeGlobals = {
 	server?: string;
 	serverVar?: string[];
 
-	// Common runtime flags.
-	header?: string[];
-	accept?: string;
-	contentType?: string;
-	data?: string;
-	file?: string;
-	timeout?: string;
-	dryRun?: boolean;
 	curl?: boolean;
-	status?: boolean;
-	headers?: boolean;
-
 	json?: boolean;
 
 	auth?: string;
@@ -207,8 +194,6 @@ export async function buildRequest(
 	);
 
 	const headers = new Headers();
-	const accept = input.globals.accept;
-	if (accept) headers.set("Accept", accept);
 
 	// Collect declared params for validation.
 	const queryValues: Record<string, unknown> = {};
@@ -273,51 +258,29 @@ export async function buildRequest(
 		headers.set("Cookie", existing ? `${existing}; ${part}` : part);
 	}
 
-	const extraHeaders = (input.globals.header ?? []).map(parseHeaderInput);
-	for (const { name, value } of extraHeaders) {
-		headers.set(name, value);
-	}
-
 	let body: string | undefined;
 	if (input.action.requestBody) {
-		const data = input.globals.data;
-		const file = input.globals.file;
-
-		const hasData = typeof data === "string";
-		const hasFile = typeof file === "string";
-
 		// Check if any body flags were provided using the flag definitions
 		const bodyFlagDefs = input.bodyFlagDefs ?? [];
-		const hasExpandedBody = bodyFlagDefs.some((def) => {
+		const hasBodyFlags = bodyFlagDefs.some((def) => {
 			// Commander keeps dots in option names: --address.street -> "address.street"
 			const dotKey = def.path.join(".");
 			return input.flagValues[dotKey] !== undefined;
 		});
 
-		if (hasData && hasFile) throw new Error("Use only one of --data or --file");
-		if (hasExpandedBody && (hasData || hasFile)) {
-			throw new Error(
-				"Use either --data/--file or body field flags (not both)",
-			);
-		}
-
-		const contentType =
-			input.globals.contentType ??
-			input.action.requestBody.preferredContentType;
+		const contentType = input.action.requestBody.preferredContentType;
 		if (contentType) headers.set("Content-Type", contentType);
 
 		const schema = input.action.requestBodySchema;
 
-		if (!hasExpandedBody && !hasData && !hasFile) {
+		if (!hasBodyFlags) {
 			if (input.action.requestBody.required) {
-				throw new Error(
-					"Missing request body. Provide --data, --file, or body field flags.",
-				);
+				throw new Error("Missing required request body fields.");
 			}
-		} else if (hasExpandedBody) {
+		} else {
 			if (!contentType?.includes("json")) {
 				throw new Error(
-					"Body field flags are only supported for JSON request bodies. Use --content-type application/json or --data/--file.",
+					"Body field flags are only supported for JSON request bodies.",
 				);
 			}
 
@@ -328,7 +291,7 @@ export async function buildRequest(
 			const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
 			if (missing.length > 0) {
 				throw new Error(
-					`Missing required body field '${missing[0]}'. Provide --${missing[0]} or use --data/--file.`,
+					`Missing required body field '${missing[0]}'. Provide --${missing[0]}.`,
 				);
 			}
 
@@ -343,47 +306,6 @@ export async function buildRequest(
 			}
 
 			body = JSON.stringify(built);
-		} else if (hasData) {
-			if (contentType?.includes("json")) {
-				const parsed = parseBodyAsJsonOrYaml(data as string);
-
-				if (schema) {
-					const validate = ajv.compile(schema);
-					if (!validate(parsed)) {
-						throw new Error(formatAjvErrors(validate.errors));
-					}
-				}
-
-				body = JSON.stringify(parsed);
-			} else {
-				body = data as string;
-			}
-		} else if (hasFile) {
-			const loaded = await loadBody({
-				kind: "file",
-				path: file as string,
-			});
-			if (contentType?.includes("json")) {
-				const parsed = parseBodyAsJsonOrYaml(loaded?.raw ?? "");
-
-				if (schema) {
-					const validate = ajv.compile(schema);
-					if (!validate(parsed)) {
-						throw new Error(formatAjvErrors(validate.errors));
-					}
-				}
-
-				body = JSON.stringify(parsed);
-			} else {
-				body = loaded?.raw;
-			}
-		}
-	} else {
-		if (
-			typeof input.globals.data === "string" ||
-			typeof input.globals.file === "string"
-		) {
-			throw new Error("This operation does not accept a request body");
 		}
 	}
 

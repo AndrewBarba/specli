@@ -114,6 +114,25 @@ describe("generateBodyFlags", () => {
 		expect(flags[0]?.flag).toBe("--name");
 	});
 
+	test("skips --curl builtin flag", () => {
+		const reservedFlags = new Set(["--curl"]);
+
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					name: { type: "string" },
+					curl: { type: "boolean" }, // conflicts with --curl builtin
+					email: { type: "string" }, // no conflict
+				},
+			},
+			reservedFlags,
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.map((f) => f.flag).sort()).toEqual(["--email", "--name"]);
+	});
+
 	test("uses description from schema", () => {
 		const flags = generateBodyFlags(
 			{

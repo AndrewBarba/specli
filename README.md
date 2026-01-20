@@ -201,50 +201,6 @@ Implementation notes:
 
 ## Request Bodies
 
-### Selecting the Body Input
-
-If an operation has a `requestBody`, you may provide a body via:
-
-- `--data <string>`
-- `--file <path>`
-- Body field flags (JSON-only; see below)
-
-Rules:
-
-- `--data` and `--file` are mutually exclusive.
-- Body field flags cannot be used with `--data` or `--file`.
-- If `requestBody.required` is true and you provide none of the above, the command fails with:
-  - `Missing request body. Provide --data, --file, or body field flags.`
-
-### Content-Type
-
-`Content-Type` is chosen as:
-
-1. `--content-type` (explicit override)
-2. The preferred content type derived from the OpenAPI requestBody (prefers `application/json` when present)
-
-### JSON Parsing + Normalization
-
-If the selected `Content-Type` includes `json`:
-
-- `--data`/`--file` content is parsed as either JSON or YAML
-- the request is sent as normalized JSON (`JSON.stringify(parsed)`)
-
-If `Content-Type` does not include `json`:
-
-- the body is treated as a raw string
-
-### Schema Validation (Ajv)
-
-specli uses Ajv (best-effort, `strict: false`) to validate:
-
-- query/header/cookie params
-- JSON request bodies when a requestBody schema is available
-
-Validation errors are formatted into a readable multiline message. For `required` errors, the message is normalized to:
-
-- `/<path> missing required property '<name>'`
-
 ### Body Field Flags
 
 When an operation has a `requestBody` and the preferred schema is a JSON object, specli generates convenience flags that match the property names:
@@ -299,11 +255,11 @@ Which produces:
 
 Notes / edge cases:
 
-- Body field flags are only supported for JSON bodies. If you try to use them without a JSON content type, specli errors.
-- Required fields in the schema are checked in a "friendly" way:
-  - `Missing required body field 'name'. Provide --name or use --data/--file.`
-- If a body field flag conflicts with an operation parameter flag, the operation parameter takes precedence.
-- Numeric coercion uses `Number(...)` / `parseInt(...)`. Today it does not explicitly reject `NaN` (this is an area to harden).
+- Body field flags are only supported for JSON bodies.
+- Required fields in the schema are checked with friendly error messages:
+  - `Missing required body field 'name'. Provide --name.`
+- If a body field flag would conflict with an operation parameter flag or `--curl`, the operation parameter takes precedence.
+- Numeric coercion uses `Number(...)` / `parseInt(...)`.
 
 ## Servers
 

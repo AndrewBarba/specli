@@ -5,7 +5,6 @@ import type { CommandModel } from "../command-model.ts";
 import type { ServerInfo } from "../server.ts";
 
 import { type BodyFlagDef, generateBodyFlags } from "./body-flags.ts";
-import { collectRepeatable } from "./collect.ts";
 import { executeAction } from "./execute.ts";
 import type { EmbeddedDefaults } from "./request.ts";
 import { coerceArrayInput, coerceValue } from "./validate/index.ts";
@@ -78,54 +77,21 @@ export function addGeneratedCommands(
 				else cmd.option(key, desc, parser);
 			}
 
-			const reservedFlags = new Set(action.flags.map((f) => f.flag));
+			// Collect reserved flags: operation params + --curl
+			const operationFlags = new Set(action.flags.map((f) => f.flag));
+			const reservedFlags = new Set([...operationFlags, "--curl"]);
 
-			// Common curl-replacement options.
-			// Only add flags that don't conflict with operation flags.
-			if (!reservedFlags.has("--header")) {
-				cmd.option(
-					"--header <header>",
-					"Extra header (repeatable)",
-					collectRepeatable,
-				);
-			}
-			if (!reservedFlags.has("--accept")) {
-				cmd.option("--accept <type>", "Override Accept header");
-			}
-			if (!reservedFlags.has("--status")) {
-				cmd.option("--status", "Include status in --json output");
-			}
-			if (!reservedFlags.has("--headers")) {
-				cmd.option("--headers", "Include headers in --json output");
-			}
-			if (!reservedFlags.has("--dry-run")) {
-				cmd.option("--dry-run", "Print request without sending");
-			}
-			if (!reservedFlags.has("--curl")) {
+			// Only --curl is a built-in flag (for debugging)
+			if (!operationFlags.has("--curl")) {
 				cmd.option("--curl", "Print curl command without sending");
-			}
-			if (!reservedFlags.has("--timeout")) {
-				cmd.option("--timeout <ms>", "Request timeout in milliseconds");
 			}
 
 			// Track body flag definitions for this action
 			let bodyFlagDefs: BodyFlagDef[] = [];
 
 			if (action.requestBody) {
-				if (!reservedFlags.has("--data")) {
-					cmd.option("--data <data>", "Inline request body");
-				}
-				if (!reservedFlags.has("--file")) {
-					cmd.option("--file <path>", "Request body from file");
-				}
-				if (!reservedFlags.has("--content-type")) {
-					cmd.option(
-						"--content-type <type>",
-						"Override Content-Type (defaults from OpenAPI)",
-					);
-				}
-
 				// Generate body flags from schema (recursive with dot notation)
+				// Pass reserved flags to avoid conflicts with operation params and --curl
 				bodyFlagDefs = generateBodyFlags(
 					action.requestBodySchema,
 					reservedFlags,
