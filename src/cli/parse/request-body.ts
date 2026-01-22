@@ -1,19 +1,20 @@
-import {
-	getSchemaEnumStrings,
-	getSchemaFormat,
-	getSchemaType,
-} from "./schema-shape.js";
 import type {
 	JsonSchema,
 	NormalizedOperation,
 	NormalizedRequestBody,
-} from "./types.js";
-import { isJsonSchema } from "./types.js";
+} from "../core/types.js";
+import { isJsonSchema } from "../core/types.js";
+import {
+	getSchemaEnumStrings,
+	getSchemaFormat,
+	getSchemaType,
+	type ParamType,
+} from "./schema-shape.js";
 
 export type RequestBodyContent = {
 	contentType: string;
 	required: boolean;
-	schemaType: import("./schema-shape.js").ParamType;
+	schemaType: ParamType;
 	schemaFormat?: string;
 	schemaEnum?: string[];
 };

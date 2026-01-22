@@ -1,14 +1,18 @@
-import type { AuthSummary } from "./auth-requirements.js";
-import { summarizeAuth } from "./auth-requirements.js";
-import type { AuthScheme } from "./auth-schemes.js";
+import type { JsonSchema, SecurityRequirement } from "../core/types.js";
+import { type AuthSummary, summarizeAuth } from "../parse/auth-requirements.js";
+import type { AuthScheme } from "../parse/auth-schemes.js";
+import { deriveParamSpecs, type ParamSpec } from "../parse/params.js";
+import {
+	deriveFlags,
+	derivePositionals,
+	type PositionalArg,
+} from "../parse/positional.js";
+import {
+	deriveRequestBodyInfo,
+	type RequestBodyInfo,
+} from "../parse/request-body.js";
 import { buildCommandId } from "./command-id.js";
 import type { PlannedOperation } from "./naming.js";
-import type { ParamSpec } from "./params.js";
-import { deriveParamSpecs } from "./params.js";
-import { deriveFlags, derivePositionals } from "./positional.js";
-import type { RequestBodyInfo } from "./request-body.js";
-import { deriveRequestBodyInfo } from "./request-body.js";
-import type { SecurityRequirement } from "./types.js";
 
 export type CommandAction = {
 	id: string;
@@ -26,10 +30,10 @@ export type CommandAction = {
 	style: PlannedOperation["style"];
 
 	// Derived CLI shape (Phase 1 output; Phase 2 will wire these into commander)
-	positionals: Array<import("./positional.js").PositionalArg>;
+	positionals: PositionalArg[];
 	flags: Array<
 		Pick<
-			import("./params.js").ParamSpec,
+			ParamSpec,
 			| "in"
 			| "name"
 			| "flag"
@@ -49,7 +53,7 @@ export type CommandAction = {
 
 	auth: AuthSummary;
 	requestBody?: RequestBodyInfo;
-	requestBodySchema?: import("./types.js").JsonSchema;
+	requestBodySchema?: JsonSchema;
 };
 
 export type CommandResource = {

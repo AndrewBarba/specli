@@ -1,9 +1,10 @@
-import type { AuthScheme } from "./auth-schemes.js";
+import type { LoadedSpec, NormalizedOperation } from "../core/types.js";
+import type { AuthScheme } from "../parse/auth-schemes.js";
+import type { ServerInfo } from "../parse/servers.js";
 import type { Capabilities } from "./capabilities.js";
+import type { CommandsIndex } from "./command-index.js";
 import type { CommandModel } from "./command-model.js";
 import type { PlannedOperation } from "./naming.js";
-import type { ServerInfo } from "./server.js";
-import type { LoadedSpec, NormalizedOperation } from "./types.js";
 
 export type SchemaOutput = {
 	schemaVersion: 1;
@@ -23,7 +24,7 @@ export type SchemaOutput = {
 	operations: NormalizedOperation[];
 	planned?: PlannedOperation[];
 	commands?: CommandModel;
-	commandsIndex?: import("./command-index.js").CommandsIndex;
+	commandsIndex?: CommandsIndex;
 };
 
 export type MinimalSchemaOutput = Pick<
@@ -38,7 +39,7 @@ export function buildSchemaOutput(
 	servers: ServerInfo[],
 	authSchemes: AuthScheme[],
 	commands: CommandModel | undefined,
-	commandsIndex: import("./command-index.js").CommandsIndex | undefined,
+	commandsIndex: CommandsIndex | undefined,
 	capabilities: Capabilities,
 ): SchemaOutput {
 	return {

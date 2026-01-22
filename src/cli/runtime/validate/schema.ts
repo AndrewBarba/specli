@@ -1,5 +1,5 @@
-import type { CommandAction } from "../../command-model.js";
-import type { JsonSchema } from "../../types.js";
+import type { JsonSchema } from "../../core/types.js";
+import type { CommandAction } from "../../model/command-model.js";
 
 export type ValidationSchemas = {
 	querySchema?: JsonSchema;

@@ -1,15 +1,21 @@
-import type { CommandAction } from "../command-model.js";
+import type { CommandAction } from "../model/command-model.js";
+import type { AuthScheme } from "../parse/auth-schemes.js";
+import type { ServerInfo } from "../parse/servers.js";
 
 import type { BodyFlagDef } from "./body-flags.js";
-import { buildRequest, type EmbeddedDefaults } from "./request.js";
+import {
+	buildRequest,
+	type EmbeddedDefaults,
+	type RuntimeGlobals,
+} from "./request.js";
 
 export type ExecuteInput = {
 	action: CommandAction;
 	positionalValues: string[];
 	flagValues: Record<string, unknown>;
-	globals: import("./request.js").RuntimeGlobals;
-	servers: import("../server.js").ServerInfo[];
-	authSchemes: import("../auth-schemes.js").AuthScheme[];
+	globals: RuntimeGlobals;
+	servers: ServerInfo[];
+	authSchemes: AuthScheme[];
 	specId: string;
 	embeddedDefaults?: EmbeddedDefaults;
 	bodyFlagDefs?: BodyFlagDef[];

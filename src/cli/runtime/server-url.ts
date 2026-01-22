@@ -1,4 +1,4 @@
-import type { ServerInfo } from "../server.js";
+import type { ServerInfo } from "../parse/servers.js";
 
 import { applyTemplate, extractTemplateVars } from "./template.js";
 

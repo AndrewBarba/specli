@@ -20,8 +20,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-
-import type { CommandAction } from "../cli/command-model.js";
+import type { CommandAction } from "../cli/model/command-model.js";
 import { buildRuntimeContext } from "../cli/runtime/context.js";
 import { execute } from "../cli/runtime/execute.js";
 import type { RuntimeGlobals } from "../cli/runtime/request.js";

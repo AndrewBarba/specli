@@ -1,5 +1,5 @@
-import { kebabCase } from "./strings.js";
-import type { OpenApiDoc } from "./types.js";
+import { kebabCase } from "../core/strings.js";
+import type { OpenApiDoc } from "../core/types.js";
 
 export type AuthSchemeKind =
 	| "http-bearer"

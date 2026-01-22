@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { listServers } from "./server.js";
-import type { OpenApiDoc } from "./types.js";
+import type { OpenApiDoc } from "../core/types.js";
+import { listServers } from "./servers.js";
 
 describe("listServers", () => {
 	test("extracts server variables from template", () => {

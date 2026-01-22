@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { deriveBinaryName } from "./derive-name.js";
+import { deriveBinaryName } from "./spec/derive-name.js";
 
 // Resolve the package root directory (at runtime this file is at dist/cli/compile.js)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -1,10 +1,10 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
 
-import { sha256Hex } from "./crypto.js";
-import { parseYamlContent } from "./runtime/compat.js";
-import { getSpecId } from "./spec-id.js";
-import { stableStringify } from "./stable-json.js";
-import type { LoadedSpec, OpenApiDoc, SpecSource } from "./types.js";
+import { sha256Hex } from "../core/crypto.js";
+import { stableStringify } from "../core/stable-json.js";
+import type { LoadedSpec, OpenApiDoc, SpecSource } from "../core/types.js";
+import { parseYamlContent } from "../runtime/compat.js";
+import { getSpecId } from "./id.js";
 
 export type LoadSpecOptions = {
 	spec?: string;

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { AuthScheme } from "./auth-schemes.js";
+import type { NormalizedOperation, OpenApiDoc } from "../core/types.js";
+import type { AuthScheme } from "../parse/auth-schemes.js";
+import type { ServerInfo } from "../parse/servers.js";
 import { deriveCapabilities } from "./capabilities.js";
 import type { CommandModel } from "./command-model.js";
-import type { ServerInfo } from "./server.js";
-import type { NormalizedOperation, OpenApiDoc } from "./types.js";
 
 describe("deriveCapabilities", () => {
 	test("reports requestBody + server vars", () => {

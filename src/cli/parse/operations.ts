@@ -3,7 +3,7 @@ import type {
 	NormalizedParameter,
 	NormalizedRequestBody,
 	OpenApiDoc,
-} from "./types.js";
+} from "../core/types.js";
 
 function operationKey(method: string, path: string): string {
 	return `${method.toUpperCase()} ${path}`;

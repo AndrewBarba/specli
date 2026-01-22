@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { tmpdir } from "node:os";
 
-import type { CommandAction } from "../command-model.js";
+import type { CommandAction } from "../model/command-model.js";
 
 import { generateBodyFlags } from "./body-flags.js";
 import { buildRequest } from "./request.js";

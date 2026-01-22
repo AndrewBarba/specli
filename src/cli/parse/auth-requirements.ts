@@ -1,5 +1,5 @@
+import type { SecurityRequirement } from "../core/types.js";
 import type { AuthScheme } from "./auth-schemes.js";
-import type { SecurityRequirement } from "./types.js";
 
 export type AuthRequirement = {
 	key: string;

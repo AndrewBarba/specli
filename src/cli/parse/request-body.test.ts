@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import type { NormalizedOperation } from "../core/types.js";
 import { deriveRequestBodyInfo } from "./request-body.js";
-import type { NormalizedOperation } from "./types.js";
 
 describe("deriveRequestBodyInfo", () => {
 	test("summarizes content types and convenience flags", () => {

@@ -1,8 +1,8 @@
 import { Command } from "commander";
 
-import type { AuthScheme } from "../auth-schemes.js";
-import type { CommandAction, CommandModel } from "../command-model.js";
-import type { ServerInfo } from "../server.js";
+import type { CommandAction, CommandModel } from "../model/command-model.js";
+import type { AuthScheme } from "../parse/auth-schemes.js";
+import type { ServerInfo } from "../parse/servers.js";
 
 import { type BodyFlagDef, generateBodyFlags } from "./body-flags.js";
 import { executeAction } from "./execute.js";

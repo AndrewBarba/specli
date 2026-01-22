@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import type { OpenApiDoc } from "../core/types.js";
 import { listAuthSchemes } from "./auth-schemes.js";
-import type { OpenApiDoc } from "./types.js";
 
 describe("listAuthSchemes", () => {
 	test("parses bearer + apiKey", () => {

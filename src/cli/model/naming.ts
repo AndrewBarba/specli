@@ -1,6 +1,6 @@
-import { pluralize } from "./pluralize.js";
-import { kebabCase } from "./strings.js";
-import type { NormalizedOperation } from "./types.js";
+import { pluralize } from "../core/pluralize.js";
+import { kebabCase } from "../core/strings.js";
+import type { NormalizedOperation } from "../core/types.js";
 
 export type PlannedOperation = NormalizedOperation & {
 	resource: string;

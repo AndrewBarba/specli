@@ -21,6 +21,8 @@ function getPackageVersion(): string {
 	}
 }
 
+import { stableStringify } from "./core/stable-json.js";
+import { toMinimalSchemaOutput } from "./model/schema.js";
 import { readStdinText } from "./runtime/compat.js";
 import { buildRuntimeContext } from "./runtime/context.js";
 import { addGeneratedCommands } from "./runtime/generated.js";
@@ -30,8 +32,6 @@ import {
 	upsertProfile,
 	writeProfiles,
 } from "./runtime/profile/store.js";
-import { toMinimalSchemaOutput } from "./schema.js";
-import { stableStringify } from "./stable-json.js";
 
 type MainOptions = {
 	embeddedSpecText?: string;

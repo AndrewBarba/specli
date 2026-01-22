@@ -1,5 +1,6 @@
-import type { AuthScheme } from "../auth-schemes.js";
-import type { CommandAction } from "../command-model.js";
+import type { CommandAction } from "../model/command-model.js";
+import type { AuthScheme } from "../parse/auth-schemes.js";
+import type { ServerInfo } from "../parse/servers.js";
 
 import { resolveAuthScheme } from "./auth/resolve.js";
 import { getToken } from "./profile/secrets.js";
@@ -144,7 +145,7 @@ export type BuildRequestInput = {
 	positionalValues: string[];
 	flagValues: Record<string, unknown>;
 	globals: RuntimeGlobals;
-	servers: import("../server.js").ServerInfo[];
+	servers: ServerInfo[];
 	authSchemes: AuthScheme[];
 	embeddedDefaults?: EmbeddedDefaults;
 	bodyFlagDefs?: import("./body-flags.js").BodyFlagDef[];

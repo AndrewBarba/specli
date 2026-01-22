@@ -1,4 +1,4 @@
-import type { ParamSpec } from "./params.js";
+import type { ParamSpec, ParamType } from "./params.js";
 
 export type ActionShapeForCli = {
 	pathArgs: string[];
@@ -9,7 +9,7 @@ export type PositionalArg = {
 	name: string;
 	required: boolean;
 	description?: string;
-	type: import("./schema-shape.js").ParamType;
+	type: ParamType;
 	format?: string;
 	enum?: string[];
 };
@@ -17,7 +17,7 @@ export type PositionalArg = {
 export type FlagsIndex = {
 	flags: Array<
 		Pick<
-			import("./params.js").ParamSpec,
+			ParamSpec,
 			| "in"
 			| "name"
 			| "flag"

@@ -1,12 +1,17 @@
+import { kebabCase } from "../core/strings.js";
+import type {
+	JsonSchema,
+	NormalizedOperation,
+	NormalizedParameter,
+} from "../core/types.js";
 import {
 	getSchemaEnumStrings,
 	getSchemaFormat,
 	getSchemaType,
+	type ParamType,
 } from "./schema-shape.js";
-import { kebabCase } from "./strings.js";
-import type { NormalizedOperation, NormalizedParameter } from "./types.js";
 
-export type ParamType = import("./schema-shape.js").ParamType;
+export type { ParamType };
 
 export type ParamSpec = {
 	kind: "positional" | "flag";
@@ -25,7 +30,7 @@ export type ParamSpec = {
 	itemEnum?: string[];
 
 	// Original schema for Ajv validation and future advanced flag expansion.
-	schema?: import("./types.js").JsonSchema;
+	schema?: JsonSchema;
 };
 
 export function deriveParamSpecs(op: NormalizedOperation): ParamSpec[] {
@@ -36,7 +41,7 @@ export function deriveParamSpecs(op: NormalizedOperation): ParamSpec[] {
 		const type = getSchemaType(p.schema);
 		const schemaObj =
 			p.schema && typeof p.schema === "object"
-				? (p.schema as import("./types.js").JsonSchema)
+				? (p.schema as JsonSchema)
 				: undefined;
 
 		const itemsSchema =
