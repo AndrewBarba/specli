@@ -1,7 +1,17 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# Resolve symlinks to find the actual script location
+SCRIPT="$0"
+while [ -L "$SCRIPT" ]; do
+	SCRIPT_DIR=$(cd -P "$(dirname "$SCRIPT")" && pwd)
+	SCRIPT=$(readlink "$SCRIPT")
+	case "$SCRIPT" in
+		/*) ;;
+		*) SCRIPT="$SCRIPT_DIR/$SCRIPT" ;;
+	esac
+done
+SCRIPT_DIR=$(cd -P "$(dirname "$SCRIPT")" && pwd)
 CLI_JS="$SCRIPT_DIR/../dist/cli.js"
 
 is_compile=0
