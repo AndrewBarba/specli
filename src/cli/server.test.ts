@@ -32,4 +32,24 @@ describe("listServers", () => {
 		]);
 		expect(servers[0]?.variables[0]?.enum).toEqual(["us", "eu"]);
 	});
+
+	test("includes servers defined on paths and operations", () => {
+		const doc: OpenApiDoc = {
+			openapi: "3.0.3",
+			paths: {
+				"/v1/forecast": {
+					servers: [{ url: "https://api.a.example.com" }],
+					get: {
+						servers: [{ url: "https://api.b.example.com" }],
+					},
+				},
+			},
+		};
+
+		const servers = listServers(doc);
+		expect(servers.map((s) => s.url)).toEqual([
+			"https://api.a.example.com",
+			"https://api.b.example.com",
+		]);
+	});
 });
