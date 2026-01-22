@@ -1,4 +1,12 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { deriveBinaryName } from "./derive-name.js";
+
+// Resolve the path to compiled.ts relative to this file's location
+// At runtime this file is at dist/cli/compile.js, so we go up two levels to package root
+// then into src/compiled.ts (which must be included in the published package)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const compiledEntrypoint = path.resolve(__dirname, "../../src/compiled.ts");
 
 export type CompileOptions = {
 	name?: string;
@@ -63,7 +71,7 @@ export async function compileCommand(
 	if (options.dotenv === false) buildArgs.push("--no-compile-autoload-dotenv");
 	if (options.bunfig === false) buildArgs.push("--no-compile-autoload-bunfig");
 
-	buildArgs.push("./src/compiled.ts");
+	buildArgs.push(compiledEntrypoint);
 
 	// Only set env vars that have actual values - avoid empty strings
 	// because the macros will embed them and they will override defaults.
