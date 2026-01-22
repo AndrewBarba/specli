@@ -1,14 +1,31 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 
 function collect(value: string, previous: string[] = []): string[] {
 	return previous.concat([value]);
 }
 
+function getPackageVersion(): string {
+	try {
+		const currentDir = dirname(fileURLToPath(import.meta.url));
+		const packageJsonPath = join(currentDir, "../package.json");
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+		return packageJson.version ?? "0.0.0";
+	} catch {
+		return "0.0.0";
+	}
+}
+
 const program = new Command();
 
-program.name("specli").description("Generate CLIs from OpenAPI specs");
+program
+	.name("specli")
+	.description("Generate CLIs from OpenAPI specs")
+	.version(getPackageVersion(), "-v, --version", "Output the version number");
 
 // ─────────────────────────────────────────────────────────────
 // exec command - runs spec dynamically (works in both Bun and Node.js)

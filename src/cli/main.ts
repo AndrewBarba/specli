@@ -1,7 +1,26 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 
 import { getArgValue, hasAnyArg } from "./runtime/argv.js";
 import { collectRepeatable } from "./runtime/collect.js";
+
+/**
+ * Reads the version from package.json at runtime.
+ * Used when running in non-compiled mode.
+ */
+function getPackageVersion(): string {
+	try {
+		const currentDir = dirname(fileURLToPath(import.meta.url));
+		const packageJsonPath = join(currentDir, "../../package.json");
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+		return packageJson.version ?? "0.0.0";
+	} catch {
+		return "0.0.0";
+	}
+}
+
 import { readStdinText } from "./runtime/compat.js";
 import { buildRuntimeContext } from "./runtime/context.js";
 import { addGeneratedCommands } from "./runtime/generated.js";
@@ -20,14 +39,19 @@ type MainOptions = {
 	server?: string;
 	serverVars?: string[];
 	auth?: string;
+	version?: string;
 };
 
 export async function main(argv: string[], options: MainOptions = {}) {
 	const program = new Command();
 
+	// Get version - use embedded version if available, otherwise read from package.json
+	const cliVersion = options.version ?? getPackageVersion();
+
 	program
 		.name(options.cliName ?? "specli")
 		.description("Generate a CLI from an OpenAPI spec")
+		.version(cliVersion, "-v, --version", "Output the version number")
 		.option("--spec <urlOrPath>", "OpenAPI URL or file path")
 		.option("--server <url>", "Override server/base URL")
 		.option(
