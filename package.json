@@ -1,6 +1,6 @@
 {
 	"name": "specli",
-	"version": "0.0.12",
+	"version": "0.0.13",
 	"type": "module",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -15,7 +15,8 @@
 	},
 	"files": [
 		"bin",
-		"dist"
+		"dist",
+		"README.md"
 	],
 	"scripts": {
 		"build": "tsc",
@@ -44,5 +45,9 @@
 	"peerDependencies": {
 		"ai": "^6.0.0",
 		"zod": "^4.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/AndrewBarba/specli.git"
 	}
 }
