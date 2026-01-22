@@ -36,6 +36,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # OpenCode
 .opencode/plans/
-
-# Specli
-.specli/
