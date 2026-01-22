@@ -1,6 +1,7 @@
 {
 	"name": "specli",
 	"version": "0.0.22",
+	"description": "Run any OpenAPI spec as a CLI. Built for Agents.",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/AndrewBarba/specli.git"
@@ -8,14 +9,18 @@
 	"type": "module",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"bin": {
-		"specli": "./bin/cli.sh"
-	},
 	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
 		"./ai/tools": {
 			"import": "./dist/ai/tools.js",
 			"types": "./dist/ai/tools.d.ts"
 		}
+	},
+	"bin": {
+		"specli": "./bin/cli.sh"
 	},
 	"files": [
 		"bin",
