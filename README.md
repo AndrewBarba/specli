@@ -1,464 +1,355 @@
 # specli
 
-specli turns an OpenAPI spec into a non-interactive, “curl replacement” CLI.
-
-It has two modes:
-
-- **exec**: run commands dynamically from a spec URL/path.
-- **compile**: bundle the spec into a standalone executable.
-
-The guiding constraints:
-
-- Bun-first (no Node runtime needed).
-- Suitable for automation/agents (stable commands, machine output via `--json`).
-- Best-effort validation of inputs against the OpenAPI schema.
-
-## Status / What Works Today
-
-It works well for a large chunk of “typical” OpenAPI 3.x REST specs:
-
-- Multiple servers + server variables.
-- Path/query/header/cookie parameters.
-- Request bodies via `--data` / `--file`.
-- JSON request body parsing + schema validation.
-- Body field flags matching OpenAPI schema properties (including nested objects with dot notation).
-- Auth injection for common schemes (bearer/basic/apiKey).
-- A deterministic `__schema` output for introspection.
-
-It is not “universal OpenAPI support” yet. See “Limitations” for important gaps.
+Turn any OpenAPI spec into a CLI.
 
 ## Install
 
 ```bash
-bun install
+npm install -g specli
 ```
 
-## Quickstart
-
-Inspect what commands will be generated:
+Or use directly with npx/bunx:
 
 ```bash
-bunx specli exec ./fixtures/openapi.json __schema
+npx specli exec ./openapi.json __schema
+bunx specli exec ./openapi.json __schema
 ```
 
-Machine-readable schema output:
+## Commands
+
+### exec
+
+Run commands dynamically from any OpenAPI spec URL or file path. Works with both Node.js and Bun.
 
 ```bash
-bunx specli exec ./fixtures/openapi.json __schema --json
+specli exec <spec> <resource> <action> [args...] [options]
 ```
 
-Minimal schema output (best for large specs):
+**Examples:**
 
 ```bash
-bunx specli exec ./fixtures/openapi.json __schema --json --min
+# Inspect available commands
+specli exec ./openapi.json __schema
+
+# Machine-readable schema output
+specli exec ./openapi.json __schema --json
+
+# Minimal schema (best for large specs)
+specli exec ./openapi.json __schema --json --min
+
+# Run an operation
+specli exec ./openapi.json users list
+
+# Run with path parameters
+specli exec ./openapi.json users get abc123
+
+# Preview the curl command without executing
+specli exec ./openapi.json users list --curl
+
+# Dry run (show request details without executing)
+specli exec ./openapi.json users list --dry-run
 ```
 
-Run a generated operation:
+### compile
+
+Bundle an OpenAPI spec into a standalone executable. **Requires Bun.**
 
 ```bash
-bunx specli exec ./fixtures/openapi.json contacts list --curl
+specli compile <spec> [options]
 ```
 
-## Build a Standalone Executable
+**Options:**
 
-Use the `compile` command to create a standalone binary with the spec embedded:
+| Option | Description |
+|--------|-------------|
+| `--name <name>` | Binary name (default: derived from spec title) |
+| `--outfile <path>` | Output path (default: `./dist/<name>`) |
+| `--target <target>` | Cross-compile target (e.g. `bun-linux-x64`) |
+| `--minify` | Enable minification |
+| `--bytecode` | Enable bytecode compilation |
+| `--no-dotenv` | Disable .env autoload |
+| `--no-bunfig` | Disable bunfig.toml autoload |
+| `--server <url>` | Bake in a default server URL |
+| `--server-var <k=v>` | Bake in server variables (repeatable) |
+| `--auth <scheme>` | Bake in default auth scheme |
+
+**Examples:**
 
 ```bash
-# compile with auto-derived name (from spec title)
-bunx specli compile ./path/to/openapi.yaml
-# → ./dist/my-api (derived from info.title)
+# Compile with auto-derived name
+specli compile ./openapi.yaml
+# Creates: ./dist/my-api
 
-# compile with explicit name
-bunx specli compile ./path/to/openapi.yaml --name myapi
-# → ./dist/myapi
+# Compile with explicit name
+specli compile ./openapi.yaml --name myapi
+# Creates: ./dist/myapi
 
-# cross-compile (example: linux x64)
-bunx specli compile https://api.vercel.com/copper/_openapi.json --target bun-linux-x64 --outfile ./dist/copper-linux
+# Cross-compile for Linux
+specli compile ./openapi.json --target bun-linux-x64 --outfile ./dist/myapi-linux
 
-# disable runtime config loading for deterministic behavior
-bunx specli compile ./path/to/openapi.yaml --no-dotenv --no-bunfig
-
-# bake in defaults (these become default flags; runtime flags override)
-bunx specli compile https://api.vercel.com/copper/_openapi.json \
-  --name copper \
-  --server https://api.vercel.com \
-  --auth VercelOidc
+# Bake in defaults
+specli compile https://api.example.com/openapi.json \
+  --name myapi \
+  --server https://api.example.com \
+  --auth BearerAuth
 ```
 
-The compiled binary is a root CLI - no `specli` prefix needed:
+The compiled binary works standalone:
 
 ```bash
-./dist/copper contacts list
-./dist/copper users get abc123 --json
+./dist/myapi users list
+./dist/myapi users get abc123 --json
 ```
-
-Notes:
-
-- The spec is embedded at compile-time using a Bun macro.
-- If `--name` is not provided, it is derived from the OpenAPI `info.title` or URL hostname.
-- Runtime flags (e.g., `--server`) override baked-in defaults.
 
 ## CLI Shape
 
 specli generates commands of the form:
 
 ```
-specli <resource> <action> [...positionals] [options]
+<resource> <action> [...positionals] [options]
 ```
 
-- `resource` comes from `tags[0]`, `operationId` prefix, or the first path segment (heuristics).
-- `action` is inferred from HTTP method + “has id in path”, or from `operationId` suffix.
-- Name collisions are disambiguated deterministically by suffixing the action name.
+- **resource**: Derived from `tags[0]`, `operationId` prefix, or first path segment
+- **action**: Inferred from HTTP method or `operationId` suffix
+- Name collisions are disambiguated automatically
 
-Use `__schema` to see the planned mapping for your spec.
+Use `__schema` to see the command mapping for any spec.
 
 ## Global Options
 
-Available on the root command:
+| Option | Description |
+|--------|-------------|
+| `--server <url>` | Override server/base URL |
+| `--server-var <name=value>` | Server URL template variable (repeatable) |
+| `--profile <name>` | Profile name |
+| `--auth <scheme>` | Select auth scheme by key |
+| `--bearer-token <token>` | Set `Authorization: Bearer <token>` |
+| `--oauth-token <token>` | Alias for `--bearer-token` |
+| `--username <user>` | Basic auth username |
+| `--password <pass>` | Basic auth password |
+| `--api-key <key>` | API key value |
+| `--json` | Machine-readable output |
 
-- `--spec <urlOrPath>`: OpenAPI URL or file path (only needed for compiled binaries to override embedded spec)
-- `--server <url>`: override server/base URL
-- `--server-var <name=value>`: server URL template variable (repeatable)
-- `--profile <name>`: profile name (config under `~/.config/specli`)
+## Per-Operation Options
 
-Auth selection + credentials:
+Every operation command includes:
 
-- `--auth <scheme>`: pick an auth scheme by key
-- `--bearer-token <token>`: set `Authorization: Bearer <token>`
-- `--oauth-token <token>`: alias of `--bearer-token`
-- `--username <username>` / `--password <password>`: basic auth
-- `--api-key <key>`: value for apiKey auth
+| Option | Description |
+|--------|-------------|
+| `--header <header>` | Extra headers (repeatable, `Name: Value` or `Name=Value`) |
+| `--accept <type>` | Override `Accept` header |
+| `--timeout <ms>` | Request timeout in milliseconds |
+| `--dry-run` | Print request details without sending |
+| `--curl` | Print equivalent curl command without sending |
 
-Output mode:
+For operations with request bodies:
 
-- `--json`: machine-readable output (never prints stack traces)
+| Option | Description |
+|--------|-------------|
+| `--data <data>` | Inline request body |
+| `--file <path>` | Read request body from file |
+| `--content-type <type>` | Override `Content-Type` |
 
-## Per-Operation Common Options
-
-Every generated operation command includes:
-
-- `--header <header>` (repeatable): extra headers; accepts `Name: Value` or `Name=Value`
-- `--accept <type>`: override `Accept` header
-- `--timeout <ms>`: request timeout in milliseconds
-- `--dry-run`: print the request that would be sent (no network call)
-- `--curl`: print an equivalent `curl` command (no network call)
-
-For operations with `requestBody`, it also includes:
-
-- `--data <data>`: inline request body
-- `--file <path>`: read request body from a file
-- `--content-type <type>`: override `Content-Type` (defaults from OpenAPI)
-
-## Parameter Mapping
+## Parameters
 
 ### Path Parameters
 
-OpenAPI parameters where `in: path` become positional arguments.
+Path parameters become positional arguments in order:
 
-- Order is derived from the path template: `/users/{id}/keys/{key_id}` becomes `<id> <key-id>`.
-- Values are URL-encoded when applied to the path.
+```
+/users/{id}/keys/{key_id}  →  <id> <key-id>
+```
 
-### Query / Header / Cookie Parameters
+### Query/Header/Cookie Parameters
 
-OpenAPI parameters where `in: query|header|cookie` become flags.
+These become kebab-case flags:
 
-Flag name rules:
+```
+limit        → --limit
+X-Request-Id → --x-request-id
+```
 
-- `--${kebabCase(parameter.name)}`
-- Examples:
-  - `limit` -> `--limit`
-  - `X-Request-Id` -> `--x-request-id`
+Required parameters are enforced by the CLI.
 
-Required flags:
+### Arrays
 
-- If the spec says `required: true`, the CLI flag is marked required (Commander enforces this).
-
-Type coercion:
-
-- `string` -> string
-- `integer` -> `parseInt`
-- `number` -> `Number(...)`
-- `boolean` -> flag presence (no value)
-- `object` -> JSON object literal string, parsed via `JSON.parse`
-- `array` -> see below
-
-### Arrays (Improved UX)
-
-Array parameters are treated as repeatable flags and appended to the query string.
-
-All of these become `?tag=a&tag=b`:
+Array parameters are repeatable:
 
 ```bash
+# All produce ?tag=a&tag=b
 specli ... --tag a --tag b
 specli ... --tag a,b
 specli ... --tag '["a","b"]'
 ```
 
-Implementation notes:
-
-- The query string is built with repeated keys (`URLSearchParams.append`).
-- Array item types are derived from `schema.items.type` when present (e.g. integer arrays validate and coerce correctly).
-
 ## Request Bodies
 
 ### Body Field Flags
 
-When an operation has a `requestBody` and the preferred schema is a JSON object, specli generates convenience flags that match the property names:
-
-- For `string|number|integer`: `--<prop> <value>`
-- For `boolean`: `--<prop>` (presence sets it to `true`)
-- For nested objects: `--<parent>.<child> <value>` (dot notation)
-
-Example (from `fixtures/openapi-body.json`):
+For JSON request bodies, specli generates convenience flags matching schema properties:
 
 ```bash
-bunx specli exec ./fixtures/openapi-body.json contacts create --name "Ada" --curl
+specli exec ./openapi.json contacts create --name "Ada" --email "ada@example.com"
 ```
 
-Produces a JSON body:
+Produces:
 
 ```json
-{"name":"Ada"}
+{"name":"Ada","email":"ada@example.com"}
 ```
 
-#### Nested Objects
+### Nested Objects
 
-Nested object properties use dot notation. For a schema like:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "name": { "type": "string" },
-    "address": {
-      "type": "object",
-      "properties": {
-        "street": { "type": "string" },
-        "city": { "type": "string" }
-      }
-    }
-  }
-}
-```
-
-You can use:
+Use dot notation for nested properties:
 
 ```bash
-mycli contacts create --name "Ada" --address.street "123 Main St" --address.city "NYC"
+mycli contacts create --name "Ada" --address.city "NYC" --address.zip "10001"
 ```
 
-Which produces:
+Produces:
 
 ```json
-{"name":"Ada","address":{"street":"123 Main St","city":"NYC"}}
+{"name":"Ada","address":{"city":"NYC","zip":"10001"}}
 ```
-
-Notes / edge cases:
-
-- Body field flags are only supported for JSON bodies.
-- Required fields in the schema are checked with friendly error messages:
-  - `Missing required body field 'name'. Provide --name.`
-- If a body field flag would conflict with an operation parameter flag or `--curl`, the operation parameter takes precedence.
-- Numeric coercion uses `Number(...)` / `parseInt(...)`.
 
 ## Servers
 
-specli resolves the request base URL in this order:
+Server URL resolution order:
 
-1. `--server <url>`
-2. profile `server` (if `--profile` is set and the profile has a server)
-3. the first `servers[0].url` in the OpenAPI spec
+1. `--server <url>` flag
+2. Profile `server` setting
+3. First `servers[0].url` in the spec
 
-If the chosen server URL has template variables (e.g. `https://{region}.api.example.com`):
+For templated URLs (e.g. `https://{region}.api.example.com`):
 
-- Provide `--server-var region=us-east-1` (repeatable)
-- If the spec defines a default for that variable, it is used automatically
+```bash
+specli ... --server-var region=us-east-1
+```
 
 ## Authentication
 
-### Supported Scheme Kinds
+### Supported Schemes
 
-From `components.securitySchemes`, specli recognizes:
+- HTTP Bearer (`type: http`, `scheme: bearer`)
+- HTTP Basic (`type: http`, `scheme: basic`)
+- API Key (`type: apiKey`, `in: header|query|cookie`)
+- OAuth2 (`type: oauth2`) - treated as bearer token
+- OpenID Connect (`type: openIdConnect`) - treated as bearer token
 
-- HTTP bearer (`type: http`, `scheme: bearer`)
-- HTTP basic (`type: http`, `scheme: basic`)
-- API key (`type: apiKey`, `in: header|query|cookie`)
-- OAuth2 (`type: oauth2`) (treated as bearer token injection)
-- OpenID Connect (`type: openIdConnect`) (treated as bearer token injection)
+### Scheme Selection
 
-### Selecting an Auth Scheme
-
-Scheme selection happens in this order:
-
-1. `--auth <scheme>` (explicit)
-2. profile `authScheme` (only if that key exists in the current spec)
-3. if the operation requires exactly one scheme, it is chosen
-4. if the spec defines exactly one scheme total, it is chosen
-
-This “only if present in current spec” behavior prevents accidental auth leakage between different specs.
+1. `--auth <scheme>` flag (explicit)
+2. Profile `authScheme` setting
+3. If operation requires exactly one scheme, use it
+4. If spec defines exactly one scheme, use it
 
 ### Providing Credentials
 
-Bearer-like schemes (`http-bearer`, `oauth2`, `openIdConnect`):
+```bash
+# Bearer/OAuth2/OIDC
+specli ... --bearer-token <token>
 
-- `--bearer-token <token>` or `--oauth-token <token>`
-- or a profile token stored via `specli auth token ...`
+# Basic auth
+specli ... --username <user> --password <pass>
 
-Basic auth:
+# API key
+specli ... --api-key <key>
+```
 
-- `--username <username>` and `--password <password>`
+## Profiles
 
-API key:
-
-- `--api-key <key>` (injected into the header/query/cookie location declared by the scheme)
-
-## Profiles (Non-Interactive)
-
-Profiles are for automation.
-
-Config file:
-
-- Read preference: `~/.config/specli/profiles.json`, else `~/.config/specli/profiles.yaml` if present
-- Writes always go to: `~/.config/specli/profiles.json`
-
-Secrets:
-
-- Tokens are stored in Bun’s secrets store (`bun.secrets`) under a spec-scoped service name.
-
-Commands:
+Store configuration for automation:
 
 ```bash
+# List profiles
 specli profile list
+
+# Create/update profile
 specli profile set --name dev --server https://api.example.com --auth bearerAuth --default
+
+# Switch default profile
 specli profile use --name dev
+
+# Delete profile
 specli profile rm --name dev
 
+# Manage tokens
 specli auth token --name dev --set "..."
 specli auth token --name dev --get
 specli auth token --name dev --delete
 ```
 
-## Output Behavior
+Config location: `~/.config/specli/profiles.json`
 
-### Default (Human + Agent Readable)
+## Output Modes
 
-- On success:
-  - if response `content-type` includes `json`, prints pretty JSON
-  - otherwise prints raw text
-- On non-2xx HTTP:
-  - prints `HTTP <status>` and response body
-  - exits with code 1
-- On CLI/validation errors:
-  - prints `error: <message>`
-  - exits with code 1
+### Default (Human Readable)
 
-### `--json` (Machine Readable)
+- Success: Pretty JSON for JSON responses, raw text otherwise
+- HTTP errors: `HTTP <status>` + response body, exit code 1
+- CLI errors: `error: <message>`, exit code 1
 
-- On success:
-  - if response is JSON, prints the parsed JSON
-  - otherwise prints the raw string
-- With `--status` and/or `--headers`, wraps output:
+### --json (Machine Readable)
 
 ```json
-{ "status": 200, "headers": { "content-type": "..." }, "body": ... }
+// Success
+{"status":200,"body":{...}}
+
+// HTTP error
+{"status":404,"body":{...}}
+
+// CLI error
+{"error":"..."}
 ```
 
-- On non-2xx HTTP:
+### --curl
 
-```json
-{ "status": 404, "body": ..., "headers": { ... } }
+Prints equivalent curl command without sending the request.
+
+### --dry-run
+
+Prints method, URL, headers, and body without sending.
+
+## AI SDK Integration
+
+specli exports an AI SDK tool for use with LLM agents:
+
+```typescript
+import { specli } from "specli/ai/tools";
+import { generateText } from "ai";
+
+const result = await generateText({
+  model: yourModel,
+  tools: {
+    api: specli({
+      spec: "https://api.example.com/openapi.json",
+      bearerToken: process.env.API_TOKEN,
+    }),
+  },
+  prompt: "List all users",
+});
 ```
 
-- On CLI/validation errors:
+The tool supports three commands:
+- `list` - Show available resources and actions
+- `help` - Get details about a specific action
+- `exec` - Execute an API call
 
-```json
-{ "error": "..." }
-```
+## Limitations
 
-### `--curl`
-
-Prints an equivalent curl invocation without sending the request.
-
-### `--dry-run`
-
-Prints the method, URL, headers, and body that would be sent without sending the request.
-
-## `__schema`
-
-`specli __schema` reports:
-
-- OpenAPI title/version
-- spec source + computed spec id + fingerprint
-- servers/auth schemes counts
-- list of normalized operations
-- planned command mapping
-
-Flags:
-
-- `--json`: JSON output
-- `--pretty`: pretty JSON
-- `--min`: minimal schema payload (commands + metadata only)
-
-## Recommended Public Specs to Test
-
-A good “real world” smoke test matrix includes:
-
-1. Vercel API (OpenAPI 3.x)
-   - URL: `https://api.vercel.com/copper/_openapi.json`
-   - Focus: real-world parameter naming collisions (e.g. `accept`), large-ish spec
-
-2. GitHub REST API (OpenAPI 3.1, very large)
-   - URL (huge): `https://raw.githubusercontent.com/github/rest-api-description/main/descriptions-next/api.github.com/api.github.com.json`
-   - Focus: size, OAS 3.1, many endpoints, varied parameter shapes
-
-3. DigitalOcean API (OpenAPI 3.0)
-   - URL: `https://raw.githubusercontent.com/digitalocean/openapi/main/specification/DigitalOcean-public.v2.yaml`
-   - Focus: big spec + deref cycles, request bodies, auth schemes
-
-4. Stripe API (OpenAPI 3.x, very complex schemas)
-   - URL: `https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.yaml`
-   - Focus: very heavy schema usage (`anyOf`, large components)
-
-Smoke harness:
-
-- Run the built-in smoke script:
-
-```bash
-bun run smoke:specs
-```
-
-Or run ad-hoc smoke tests:
-
-```bash
-bunx specli exec <URL> __schema --json --min > /dev/null
-bunx specli exec <URL> <some-resource> <some-action> --curl
-```
-
-Note: Kubernetes publishes a Swagger 2.0 document (`swagger.json`) which is not OpenAPI 3.x. specli currently expects `openapi: "3.x"` and will reject Swagger 2.0 specs.
-
-## Limitations (Important)
-
-specli is intentionally v1-simple; common gaps for real-world specs:
-
-- OpenAPI 3.x only (Swagger 2.0 not supported).
-- Parameter serialization is simplified:
-  - arrays are always encoded as repeated keys (`?tag=a&tag=b`)
-  - does not implement OpenAPI `style` / `explode` / deepObject / etc.
-- Array item types are not tracked yet (arrays treated as string arrays for coercion).
-- Request body convenience flags only support “simple object with scalar properties”.
-- Multipart, binary uploads, and file/form modeling are not implemented.
-- `Content-Type`/`Accept` negotiation is basic (string includes checks for `json`).
-- OAuth2 flows are not implemented (token acquisition is out of scope); oauth2 is treated as bearer token injection.
+- OpenAPI 3.x only (Swagger 2.0 not supported)
+- Array serialization uses repeated keys only (`?tag=a&tag=b`)
+- OpenAPI `style`/`explode`/deepObject not implemented
+- Body field flags only support JSON with scalar/nested object properties
+- Multipart and binary uploads not implemented
+- OAuth2 token acquisition not implemented (use `--bearer-token` with pre-acquired tokens)
 
 ## Development
 
-Scripts:
-
-- `bun run lint` (Biome CI)
-- `bun run typecheck` (tsgo)
-- `bun test`
-
-Repo entry points:
-
-- `cli.ts`: main CLI entry with `exec` and `compile` subcommands
-- `src/compiled.ts`: entry point for compiled binaries (embedded spec via Bun macro)
+```bash
+bun install
+bun run build
+bun test
+bun run lint
+bun run typecheck
+```
