@@ -28,9 +28,6 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Build
-        run: bun run build
-
       - name: Setup Node.js for npm publish
         uses: actions/setup-node@v4
         with:
