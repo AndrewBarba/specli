@@ -1,6 +1,6 @@
 {
 	"name": "specli",
-	"version": "0.0.21",
+	"version": "0.0.22",
 	"type": "module",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -17,7 +17,8 @@
 		"bin",
 		"dist",
 		"README.md",
-		"package.json"
+		"package.json",
+		"!**/*.test.*"
 	],
 	"scripts": {
 		"build": "tsc",
