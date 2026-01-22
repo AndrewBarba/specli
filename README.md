@@ -310,6 +310,64 @@ Prints equivalent curl command without sending the request.
 
 Prints method, URL, headers, and body without sending.
 
+## Programmatic API
+
+Use specli as a library to execute OpenAPI operations programmatically:
+
+```typescript
+import { specli } from "specli";
+
+const api = await specli({
+  spec: "https://api.example.com/openapi.json",
+  bearerToken: process.env.API_TOKEN,
+});
+
+// List available resources and actions
+const resources = api.list();
+
+// Get help for a specific action
+const help = api.help("users", "get");
+
+// Execute an API call
+const result = await api.exec("users", "get", ["123"], { include: "profile" });
+if (result.ok) {
+  console.log(result.body);
+}
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `spec` | OpenAPI spec URL or file path (required) |
+| `server` | Override server/base URL |
+| `serverVars` | Server URL template variables (`Record<string, string>`) |
+| `bearerToken` | Bearer token for authentication |
+| `apiKey` | API key for authentication |
+| `basicAuth` | Basic auth credentials (`{ username, password }`) |
+| `authScheme` | Auth scheme to use (if multiple are available) |
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `list()` | Returns all resources and their actions |
+| `help(resource, action)` | Get detailed info about an action |
+| `exec(resource, action, args?, flags?)` | Execute an API call |
+
+### ExecuteResult
+
+The `exec()` method returns:
+
+```typescript
+{
+  ok: boolean;     // true if status 2xx
+  status: number;  // HTTP status code
+  body: unknown;   // Parsed response body
+  curl: string;    // Equivalent curl command
+}
+```
+
 ## AI SDK Integration
 
 specli exports an AI SDK tool for use with LLM agents:
