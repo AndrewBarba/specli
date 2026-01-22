@@ -5,13 +5,13 @@
  *
  * @example
  * ```ts
- * import { specli } from "specli/ai";
+ * import { specliTool } from "specli/ai/tools";
  * import { generateText } from "ai";
  *
  * const result = await generateText({
  *   model: yourModel,
  *   tools: {
- *     api: await specli({ spec: "https://api.example.com/openapi.json" }),
+ *     api: await specliTool({ spec: "https://api.example.com/openapi.json" }),
  *   },
  *   prompt: "List all users",
  * });
@@ -20,40 +20,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-import type { CommandAction } from "../cli/model/command-model.js";
-import { buildRuntimeContext } from "../cli/runtime/context.js";
-import { execute } from "../cli/runtime/execute.js";
-import type { RuntimeGlobals } from "../cli/runtime/request.js";
-
-export type SpecliToolOptions = {
-	/** The OpenAPI spec URL or file path */
-	spec: string;
-	/** Override the server/base URL */
-	server?: string;
-	/** Server URL template variables */
-	serverVars?: Record<string, string>;
-	/** Bearer token for authentication */
-	bearerToken?: string;
-	/** API key for authentication */
-	apiKey?: string;
-	/** Basic auth credentials */
-	basicAuth?: { username: string; password: string };
-	/** Auth scheme to use (if multiple are available) */
-	authScheme?: string;
-};
-
-function findAction(
-	ctx: Awaited<ReturnType<typeof buildRuntimeContext>>,
-	resource: string,
-	action: string,
-): CommandAction | undefined {
-	const r = ctx.commands.resources.find(
-		(r) => r.resource.toLowerCase() === resource.toLowerCase(),
-	);
-	return r?.actions.find(
-		(a) => a.action.toLowerCase() === action.toLowerCase(),
-	);
-}
+import { createClient, type SpecliOptions } from "../client/index.js";
 
 /**
  * Create an AI SDK tool for interacting with an OpenAPI spec.
@@ -61,19 +28,8 @@ function findAction(
  * The spec is fetched once when this function is called, so the returned
  * tool already has the spec loaded and ready to use.
  */
-export async function specli(options: SpecliToolOptions) {
-	const {
-		spec,
-		server,
-		serverVars,
-		bearerToken,
-		apiKey,
-		basicAuth,
-		authScheme,
-	} = options;
-
-	// Fetch and parse the spec upfront
-	const ctx = await buildRuntimeContext({ spec });
+export async function specliTool(options: SpecliOptions) {
+	const client = await createClient(options);
 
 	return tool({
 		description: `Execute API operations. Commands: "list" (show resources/actions), "help" (action details), "exec" (call API).`,
@@ -92,95 +48,39 @@ export async function specli(options: SpecliToolOptions) {
 		}),
 		execute: async ({ command, resource, action, args, flags }) => {
 			if (command === "list") {
-				return {
-					resources: ctx.commands.resources.map((r) => ({
-						name: r.resource,
-						actions: r.actions.map((a) => ({
-							name: a.action,
-							summary: a.summary,
-							method: a.method,
-							path: a.path,
-							args: a.positionals.map((p) => p.name),
-							requiredFlags: a.flags
-								.filter((f) => f.required)
-								.map((f) => f.flag),
-						})),
-					})),
-				};
+				return { resources: client.list() };
 			}
 
 			if (command === "help") {
 				if (!resource) return { error: "Missing resource" };
-				const r = ctx.commands.resources.find(
-					(r) => r.resource.toLowerCase() === resource.toLowerCase(),
-				);
-				if (!r) return { error: `Unknown resource: ${resource}` };
 				if (!action) {
+					// List actions for a resource
+					const resources = client.list();
+					const r = resources.find(
+						(r) => r.name.toLowerCase() === resource.toLowerCase(),
+					);
+					if (!r) return { error: `Unknown resource: ${resource}` };
 					return {
-						resource: r.resource,
-						actions: r.actions.map((a) => a.action),
+						resource: r.name,
+						actions: r.actions.map((a) => a.name),
 					};
 				}
-				const a = r.actions.find(
-					(a) => a.action.toLowerCase() === action.toLowerCase(),
-				);
-				if (!a) return { error: `Unknown action: ${action}` };
-				return {
-					action: a.action,
-					method: a.method,
-					path: a.path,
-					summary: a.summary,
-					args: a.positionals.map((p) => ({
-						name: p.name,
-						description: p.description,
-					})),
-					flags: a.flags.map((f) => ({
-						name: f.flag,
-						type: f.type,
-						required: f.required,
-						description: f.description,
-					})),
-				};
+				const detail = client.help(resource, action);
+				if (!detail) return { error: `Unknown: ${resource} ${action}` };
+				return detail;
 			}
 
 			if (command === "exec") {
 				if (!resource || !action)
 					return { error: "Missing resource or action" };
-				const actionDef = findAction(ctx, resource, action);
-				if (!actionDef) return { error: `Unknown: ${resource} ${action}` };
-
-				const positionalValues = args ?? [];
-				if (positionalValues.length < actionDef.positionals.length) {
-					return {
-						error: `Missing args: ${actionDef.positionals
-							.slice(positionalValues.length)
-							.map((p) => p.name)
-							.join(", ")}`,
-					};
-				}
-
-				const globals: RuntimeGlobals = {
-					server,
-					serverVar: serverVars
-						? Object.entries(serverVars).map(([k, v]) => `${k}=${v}`)
-						: undefined,
-					auth: authScheme,
-					bearerToken,
-					apiKey,
-					username: basicAuth?.username,
-					password: basicAuth?.password,
-				};
 
 				try {
-					const result = await execute({
-						specId: ctx.loaded.id,
-						action: actionDef,
-						positionalValues,
-						flagValues: flags ?? {},
-						globals,
-						servers: ctx.servers,
-						authSchemes: ctx.authSchemes,
-					});
+					const result = await client.exec(
+						resource,
+						action,
+						args ?? [],
+						flags ?? {},
+					);
 					return { status: result.status, ok: result.ok, body: result.body };
 				} catch (err) {
 					return { error: err instanceof Error ? err.message : String(err) };
@@ -191,3 +91,9 @@ export async function specli(options: SpecliToolOptions) {
 		},
 	});
 }
+
+// Re-export for backwards compatibility
+export { specliTool as specli };
+
+// Re-export the options type
+export type { SpecliOptions as SpecliToolOptions } from "../client/index.js";
