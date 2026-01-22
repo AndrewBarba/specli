@@ -16,7 +16,6 @@
 	"files": [
 		"bin",
 		"dist",
-		"src",
 		"README.md",
 		"package.json"
 	],
