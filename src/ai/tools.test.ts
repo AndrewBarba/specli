@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { clearSpecliCache, specli } from "./tools.ts";
+import { clearSpecliCache, specli } from "./tools.js";
 
 const mockOptions = {
 	toolCallId: "test-call-id",

@@ -34,7 +34,7 @@ program
 	.allowUnknownOption()
 	.allowExcessArguments()
 	.action(async (spec, options, command) => {
-		const { execCommand } = await import("./src/cli/exec.ts");
+		const { execCommand } = await import("./cli/exec.js");
 		await execCommand(spec, options, command.args);
 	});
 
@@ -70,7 +70,7 @@ program
 			console.error("Then run: bunx specli compile <spec>");
 			process.exit(1);
 		}
-		const { compileCommand } = await import("./src/cli/compile.ts");
+		const { compileCommand } = await import("./cli/compile.js");
 		await compileCommand(spec, options);
 	});
 

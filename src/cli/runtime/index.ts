@@ -1,3 +1,3 @@
-export * from "./argv.ts";
-export * from "./context.ts";
-export * from "./generated.ts";
+export * from "./argv.js";
+export * from "./context.js";
+export * from "./generated.js";

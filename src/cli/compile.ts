@@ -1,4 +1,4 @@
-import { deriveBinaryName } from "./derive-name.ts";
+import { deriveBinaryName } from "./derive-name.js";
 
 export type CompileOptions = {
 	name?: string;

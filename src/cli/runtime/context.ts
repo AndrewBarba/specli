@@ -1,12 +1,12 @@
-import { listAuthSchemes } from "../auth-schemes.ts";
-import { deriveCapabilities } from "../capabilities.ts";
-import { buildCommandsIndex } from "../command-index.ts";
-import { buildCommandModel } from "../command-model.ts";
-import { planOperations } from "../naming.ts";
-import { indexOperations } from "../operations.ts";
-import { buildSchemaOutput } from "../schema.ts";
-import { listServers } from "../server.ts";
-import { loadSpec } from "../spec-loader.ts";
+import { listAuthSchemes } from "../auth-schemes.js";
+import { deriveCapabilities } from "../capabilities.js";
+import { buildCommandsIndex } from "../command-index.js";
+import { buildCommandModel } from "../command-model.js";
+import { planOperations } from "../naming.js";
+import { indexOperations } from "../operations.js";
+import { buildSchemaOutput } from "../schema.js";
+import { listServers } from "../server.js";
+import { loadSpec } from "../spec-loader.js";
 
 export type BuildRuntimeContextOptions = {
 	spec?: string;

@@ -1,4 +1,4 @@
-import Ajv from "ajv";
+import { Ajv } from "ajv";
 import addFormats from "ajv-formats";
 
 export function createAjv() {
@@ -8,6 +8,6 @@ export function createAjv() {
 		coerceTypes: false,
 	});
 
-	addFormats(ajv);
+	addFormats.default(ajv);
 	return ajv;
 }

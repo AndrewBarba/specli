@@ -1,4 +1,4 @@
-import type { AuthScheme } from "../../auth-schemes.ts";
+import type { AuthScheme } from "../../auth-schemes.js";
 
 export type AuthInputs = {
 	flagAuthScheme?: string;
@@ -15,7 +15,7 @@ const BEARER_COMPATIBLE_KINDS = new Set([
 
 export function resolveAuthScheme(
 	authSchemes: AuthScheme[],
-	required: import("../../auth-requirements.ts").AuthSummary,
+	required: import("../../auth-requirements.js").AuthSummary,
 	inputs: AuthInputs,
 ): string | undefined {
 	// Priority: CLI flag > profile > embedded default

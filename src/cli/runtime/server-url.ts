@@ -1,6 +1,6 @@
-import type { ServerInfo } from "../server.ts";
+import type { ServerInfo } from "../server.js";
 
-import { applyTemplate, extractTemplateVars } from "./template.ts";
+import { applyTemplate, extractTemplateVars } from "./template.js";
 
 export type ResolveServerInput = {
 	serverOverride?: string;

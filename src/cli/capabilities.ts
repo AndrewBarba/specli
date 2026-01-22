@@ -1,11 +1,11 @@
-import type { AuthScheme, AuthSchemeKind } from "./auth-schemes.ts";
-import type { CommandModel } from "./command-model.ts";
-import type { ServerInfo } from "./server.ts";
+import type { AuthScheme, AuthSchemeKind } from "./auth-schemes.js";
+import type { CommandModel } from "./command-model.js";
+import type { ServerInfo } from "./server.js";
 import type {
 	NormalizedOperation,
 	OpenApiDoc,
 	SecurityRequirement,
-} from "./types.ts";
+} from "./types.js";
 
 export type Capabilities = {
 	servers: {

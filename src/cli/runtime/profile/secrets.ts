@@ -1,4 +1,4 @@
-import { isBun } from "../compat.ts";
+import { isBun } from "../compat.js";
 
 const bunLiteral = "bun" as const;
 

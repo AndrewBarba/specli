@@ -1,18 +1,18 @@
 import { Command } from "commander";
 
-import { getArgValue, hasAnyArg } from "./runtime/argv.ts";
-import { collectRepeatable } from "./runtime/collect.ts";
-import { readStdinText } from "./runtime/compat.ts";
-import { buildRuntimeContext } from "./runtime/context.ts";
-import { addGeneratedCommands } from "./runtime/generated.ts";
-import { deleteToken, getToken, setToken } from "./runtime/profile/secrets.ts";
+import { getArgValue, hasAnyArg } from "./runtime/argv.js";
+import { collectRepeatable } from "./runtime/collect.js";
+import { readStdinText } from "./runtime/compat.js";
+import { buildRuntimeContext } from "./runtime/context.js";
+import { addGeneratedCommands } from "./runtime/generated.js";
+import { deleteToken, getToken, setToken } from "./runtime/profile/secrets.js";
 import {
 	readProfiles,
 	upsertProfile,
 	writeProfiles,
-} from "./runtime/profile/store.ts";
-import { toMinimalSchemaOutput } from "./schema.ts";
-import { stableStringify } from "./stable-json.ts";
+} from "./runtime/profile/store.js";
+import { toMinimalSchemaOutput } from "./schema.js";
+import { stableStringify } from "./stable-json.js";
 
 type MainOptions = {
 	embeddedSpecText?: string;

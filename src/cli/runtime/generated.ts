@@ -1,13 +1,13 @@
 import { Command } from "commander";
 
-import type { AuthScheme } from "../auth-schemes.ts";
-import type { CommandAction, CommandModel } from "../command-model.ts";
-import type { ServerInfo } from "../server.ts";
+import type { AuthScheme } from "../auth-schemes.js";
+import type { CommandAction, CommandModel } from "../command-model.js";
+import type { ServerInfo } from "../server.js";
 
-import { type BodyFlagDef, generateBodyFlags } from "./body-flags.ts";
-import { executeAction } from "./execute.ts";
-import type { EmbeddedDefaults } from "./request.ts";
-import { coerceArrayInput, coerceValue } from "./validate/index.ts";
+import { type BodyFlagDef, generateBodyFlags } from "./body-flags.js";
+import { executeAction } from "./execute.js";
+import type { EmbeddedDefaults } from "./request.js";
+import { coerceArrayInput, coerceValue } from "./validate/index.js";
 
 // Flag type from CommandAction
 type CommandFlag = CommandAction["flags"][number];

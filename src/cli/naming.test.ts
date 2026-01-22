@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { planOperation } from "./naming.ts";
-import type { NormalizedOperation } from "./types.ts";
+import { planOperation } from "./naming.js";
+import type { NormalizedOperation } from "./types.js";
 
 describe("planOperation", () => {
 	test("REST: GET /contacts -> contacts list", () => {

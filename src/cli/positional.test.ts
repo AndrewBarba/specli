@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ActionShapeForCli } from "./positional.ts";
-import { deriveFlags, derivePositionals } from "./positional.ts";
+import type { ActionShapeForCli } from "./positional.js";
+import { deriveFlags, derivePositionals } from "./positional.js";
 
 describe("derivePositionals", () => {
 	test("returns ordered positionals from pathArgs", () => {

@@ -4,7 +4,7 @@ import {
 	findMissingRequired,
 	generateBodyFlags,
 	parseDotNotationFlags,
-} from "./body-flags.ts";
+} from "./body-flags.js";
 
 describe("generateBodyFlags", () => {
 	test("generates flags for simple properties", () => {

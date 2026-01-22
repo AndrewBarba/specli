@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { summarizeAuth } from "./auth-requirements.ts";
-import type { AuthScheme } from "./auth-schemes.ts";
+import { summarizeAuth } from "./auth-requirements.js";
+import type { AuthScheme } from "./auth-schemes.js";
 
 describe("summarizeAuth", () => {
 	test("uses operation-level security when present", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { deriveParamSpecs } from "./params.ts";
-import type { NormalizedOperation } from "./types.ts";
+import { deriveParamSpecs } from "./params.js";
+import type { NormalizedOperation } from "./types.js";
 
 describe("deriveParamSpecs", () => {
 	test("derives basic types + flags", () => {

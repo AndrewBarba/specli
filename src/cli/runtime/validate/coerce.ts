@@ -1,6 +1,6 @@
 import { InvalidArgumentError } from "commander";
 
-import type { ParamType } from "../../schema-shape.ts";
+import type { ParamType } from "../../schema-shape.js";
 
 export function coerceValue(raw: string, type: ParamType): unknown {
 	if (type === "string" || type === "unknown") return raw;

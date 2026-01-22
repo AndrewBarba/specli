@@ -1,4 +1,4 @@
-import { main } from "./main.ts";
+import { main } from "./main.js";
 
 export type ExecOptions = {
 	server?: string;

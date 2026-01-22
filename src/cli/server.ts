@@ -1,5 +1,5 @@
-import { getSchemaEnumStrings } from "./schema-shape.ts";
-import type { OpenApiDoc } from "./types.ts";
+import { getSchemaEnumStrings } from "./schema-shape.js";
+import type { OpenApiDoc } from "./types.js";
 
 export type ServerVariable = {
 	name: string;

@@ -1,4 +1,4 @@
-import type { CommandAction, CommandModel } from "./command-model.ts";
+import type { CommandAction, CommandModel } from "./command-model.js";
 
 export type CommandsIndex = {
 	byId: Record<string, CommandAction>;

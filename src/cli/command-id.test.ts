@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildCommandId } from "./command-id.ts";
+import { buildCommandId } from "./command-id.js";
 
 describe("buildCommandId", () => {
 	test("includes spec/resource/action/op", () => {

@@ -1,16 +1,16 @@
-import type { AuthScheme } from "../auth-schemes.ts";
-import type { CommandAction } from "../command-model.ts";
+import type { AuthScheme } from "../auth-schemes.js";
+import type { CommandAction } from "../command-model.js";
 
-import { resolveAuthScheme } from "./auth/resolve.ts";
-import { getToken } from "./profile/secrets.ts";
-import { getProfile, readProfiles } from "./profile/store.ts";
-import { resolveServerUrl } from "./server-url.ts";
-import { applyTemplate } from "./template.ts";
+import { resolveAuthScheme } from "./auth/resolve.js";
+import { getToken } from "./profile/secrets.js";
+import { getProfile, readProfiles } from "./profile/store.js";
+import { resolveServerUrl } from "./server-url.js";
+import { applyTemplate } from "./template.js";
 import {
 	createAjv,
 	deriveValidationSchemas,
 	formatAjvErrors,
-} from "./validate/index.ts";
+} from "./validate/index.js";
 
 export type RuntimeGlobals = {
 	spec?: string;
@@ -144,10 +144,10 @@ export type BuildRequestInput = {
 	positionalValues: string[];
 	flagValues: Record<string, unknown>;
 	globals: RuntimeGlobals;
-	servers: import("../server.ts").ServerInfo[];
+	servers: import("../server.js").ServerInfo[];
 	authSchemes: AuthScheme[];
 	embeddedDefaults?: EmbeddedDefaults;
-	bodyFlagDefs?: import("./body-flags.ts").BodyFlagDef[];
+	bodyFlagDefs?: import("./body-flags.js").BodyFlagDef[];
 };
 
 export async function buildRequest(
@@ -297,7 +297,7 @@ export async function buildRequest(
 
 			// Check for missing required fields
 			const { findMissingRequired, parseDotNotationFlags } = await import(
-				"./body-flags.ts"
+				"./body-flags.js"
 			);
 			const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
 			if (missing.length > 0) {

@@ -1,5 +1,5 @@
-import { kebabCase } from "./strings.ts";
-import type { LoadedSpec } from "./types.ts";
+import { kebabCase } from "./strings.js";
+import type { LoadedSpec } from "./types.js";
 
 export function getSpecId(
 	loaded: Pick<LoadedSpec, "doc" | "fingerprint">,

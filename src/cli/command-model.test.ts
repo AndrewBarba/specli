@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildCommandModel } from "./command-model.ts";
-import type { PlannedOperation } from "./naming.ts";
+import { buildCommandModel } from "./command-model.js";
+import type { PlannedOperation } from "./naming.js";
 
 describe("buildCommandModel", () => {
 	test("groups operations by resource", () => {

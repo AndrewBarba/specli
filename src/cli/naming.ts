@@ -1,6 +1,6 @@
-import { pluralize } from "./pluralize.ts";
-import { kebabCase } from "./strings.ts";
-import type { NormalizedOperation } from "./types.ts";
+import { pluralize } from "./pluralize.js";
+import { kebabCase } from "./strings.js";
+import type { NormalizedOperation } from "./types.js";
 
 export type PlannedOperation = NormalizedOperation & {
 	resource: string;

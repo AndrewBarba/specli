@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { indexOperations } from "./operations.ts";
-import type { OpenApiDoc } from "./types.ts";
+import { indexOperations } from "./operations.js";
+import type { OpenApiDoc } from "./types.js";
 
 describe("indexOperations", () => {
 	test("indexes basic operations", () => {

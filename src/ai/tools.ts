@@ -21,10 +21,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { CommandAction } from "../cli/command-model.ts";
-import { buildRuntimeContext } from "../cli/runtime/context.ts";
-import { execute } from "../cli/runtime/execute.ts";
-import type { RuntimeGlobals } from "../cli/runtime/request.ts";
+import type { CommandAction } from "../cli/command-model.js";
+import { buildRuntimeContext } from "../cli/runtime/context.js";
+import { execute } from "../cli/runtime/execute.js";
+import type { RuntimeGlobals } from "../cli/runtime/request.js";
 
 export type SpecliToolOptions = {
 	/** The OpenAPI spec URL or file path */

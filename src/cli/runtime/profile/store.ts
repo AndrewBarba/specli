@@ -4,7 +4,7 @@ import {
 	parseYamlContent,
 	readFileText,
 	writeFileText,
-} from "../compat.ts";
+} from "../compat.js";
 
 export type Profile = {
 	name: string;

@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 import { tmpdir } from "node:os";
 
-import type { CommandAction } from "../command-model.ts";
+import type { CommandAction } from "../command-model.js";
 
-import { generateBodyFlags } from "./body-flags.ts";
-import { buildRequest } from "./request.ts";
-import { createAjv, formatAjvErrors } from "./validate/index.ts";
+import { generateBodyFlags } from "./body-flags.js";
+import { buildRequest } from "./request.js";
+import { createAjv, formatAjvErrors } from "./validate/index.js";
 
 function makeAction(partial?: Partial<CommandAction>): CommandAction {
 	return {

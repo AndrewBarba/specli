@@ -1,5 +1,5 @@
-import type { AuthScheme } from "./auth-schemes.ts";
-import type { SecurityRequirement } from "./types.ts";
+import type { AuthScheme } from "./auth-schemes.js";
+import type { SecurityRequirement } from "./types.js";
 
 export type AuthRequirement = {
 	key: string;

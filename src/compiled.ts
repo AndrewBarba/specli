@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
-import { main } from "./cli/main.ts";
-import { env, envRequired } from "./macros/env.ts" with { type: "macro" };
-import { loadSpec } from "./macros/spec.ts" with { type: "macro" };
+import { main } from "./cli/main.js";
+import { env, envRequired } from "./macros/env.js" with { type: "macro" };
+import { loadSpec } from "./macros/spec.js" with { type: "macro" };
 
 // This entrypoint is intended to be compiled.
 // All values are embedded via Bun macros at bundle-time.

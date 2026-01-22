@@ -1,4 +1,4 @@
-import { parseYamlContent, readFileText } from "./compat.ts";
+import { parseYamlContent, readFileText } from "./compat.js";
 
 export type BodyInput =
 	| { kind: "none" }

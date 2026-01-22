@@ -1,4 +1,4 @@
-import { kebabCase } from "./strings.ts";
+import { kebabCase } from "./strings.js";
 
 export type CommandIdParts = {
 	specId: string;

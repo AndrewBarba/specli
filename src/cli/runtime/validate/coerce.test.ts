@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { coerceArrayInput, coerceValue } from "./coerce.ts";
+import { coerceArrayInput, coerceValue } from "./coerce.js";
 
 describe("coerceValue", () => {
 	test("returns string as-is for string type", () => {
