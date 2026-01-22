@@ -1,0 +1,4 @@
+# Test files
+**/*.test.ts
+**/*.test.js
+**/*.test.d.ts
