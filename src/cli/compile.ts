@@ -30,7 +30,7 @@ export async function compileCommand(
 ): Promise<void> {
 	// Derive name from spec if not provided
 	const name = options.name ?? (await deriveBinaryName(spec));
-	const outfile = options.outfile ?? `./dist/${name}`;
+	const outfile = options.outfile ?? `./.specli/${name}`;
 
 	const target = options.target
 		? (options.target as Bun.Build.Target)
