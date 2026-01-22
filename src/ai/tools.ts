@@ -11,7 +11,7 @@
  * const result = await generateText({
  *   model: yourModel,
  *   tools: {
- *     api: specli({ spec: "https://api.example.com/openapi.json" }),
+ *     api: await specli({ spec: "https://api.example.com/openapi.json" }),
  *   },
  *   prompt: "List all users",
  * });
@@ -43,21 +43,6 @@ export type SpecliToolOptions = {
 	authScheme?: string;
 };
 
-// Cache contexts to avoid reloading spec on every call
-const contextCache = new Map<
-	string,
-	Awaited<ReturnType<typeof buildRuntimeContext>>
->();
-
-async function getContext(spec: string) {
-	let ctx = contextCache.get(spec);
-	if (!ctx) {
-		ctx = await buildRuntimeContext({ spec });
-		contextCache.set(spec, ctx);
-	}
-	return ctx;
-}
-
 function findAction(
 	ctx: Awaited<ReturnType<typeof buildRuntimeContext>>,
 	resource: string,
@@ -73,8 +58,11 @@ function findAction(
 
 /**
  * Create an AI SDK tool for interacting with an OpenAPI spec.
+ *
+ * The spec is fetched once when this function is called, so the returned
+ * tool already has the spec loaded and ready to use.
  */
-export function specli(options: SpecliToolOptions) {
+export async function specli(options: SpecliToolOptions) {
 	const {
 		spec,
 		server,
@@ -84,6 +72,9 @@ export function specli(options: SpecliToolOptions) {
 		basicAuth,
 		authScheme,
 	} = options;
+
+	// Fetch and parse the spec upfront
+	const ctx = await buildRuntimeContext({ spec });
 
 	return tool({
 		description: `Execute API operations. Commands: "list" (show resources/actions), "help" (action details), "exec" (call API).`,
@@ -101,8 +92,6 @@ export function specli(options: SpecliToolOptions) {
 				.describe("Named flags"),
 		}),
 		execute: async ({ command, resource, action, args, flags }) => {
-			const ctx = await getContext(spec);
-
 			if (command === "list") {
 				return {
 					resources: ctx.commands.resources.map((r) => ({
@@ -202,10 +191,4 @@ export function specli(options: SpecliToolOptions) {
 			return { error: `Unknown command: ${command}` };
 		},
 	});
-}
-
-/** Clear cached spec context */
-export function clearSpecliCache(spec?: string): void {
-	if (spec) contextCache.delete(spec);
-	else contextCache.clear();
 }

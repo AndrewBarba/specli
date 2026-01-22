@@ -321,7 +321,7 @@ import { generateText } from "ai";
 const result = await generateText({
   model: yourModel,
   tools: {
-    api: specli({
+    api: await specli({
       spec: "https://api.example.com/openapi.json",
       bearerToken: process.env.API_TOKEN,
     }),
@@ -329,6 +329,8 @@ const result = await generateText({
   prompt: "List all users",
 });
 ```
+
+The `specli()` function is async and fetches the OpenAPI spec upfront, so the returned tool is ready to use immediately without any additional network requests.
 
 The tool supports three commands:
 - `list` - Show available resources and actions

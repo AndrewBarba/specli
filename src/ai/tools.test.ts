@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { clearSpecliCache, specli } from "./tools.js";
+import { specli } from "./tools.js";
 
 const mockOptions = {
 	toolCallId: "test-call-id",
@@ -8,8 +8,8 @@ const mockOptions = {
 };
 
 describe("specli tool", () => {
-	test("creates a tool with correct structure", () => {
-		const tool = specli({
+	test("creates a tool with correct structure", async () => {
+		const tool = await specli({
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
@@ -20,7 +20,7 @@ describe("specli tool", () => {
 	});
 
 	test("list command returns resources", async () => {
-		const tool = specli({
+		const tool = await specli({
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
@@ -33,7 +33,7 @@ describe("specli tool", () => {
 	});
 
 	test("help command returns action details", async () => {
-		const tool = specli({
+		const tool = await specli({
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
@@ -47,7 +47,7 @@ describe("specli tool", () => {
 	});
 
 	test("help command with missing resource returns error", async () => {
-		const tool = specli({
+		const tool = await specli({
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
@@ -59,7 +59,7 @@ describe("specli tool", () => {
 	});
 
 	test("exec command with missing args returns error", async () => {
-		const tool = specli({
+		const tool = await specli({
 			spec: "https://petstore3.swagger.io/api/v3/openapi.json",
 		});
 
@@ -70,14 +70,5 @@ describe("specli tool", () => {
 
 		expect(result).toHaveProperty("error");
 		expect(result.error).toContain("Missing args");
-	});
-
-	test("clearCache works", async () => {
-		const spec = "https://petstore3.swagger.io/api/v3/openapi.json";
-		const tool = specli({ spec });
-
-		await tool.execute?.({ command: "list" }, mockOptions);
-		clearSpecliCache(spec);
-		clearSpecliCache();
 	});
 });
