@@ -197,11 +197,16 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.description("Print indexed operations (machine-readable when --json)")
 		.option("--pretty", "Pretty-print JSON when used with --json")
 		.option("--min", "Minimal JSON output (commands + metadata only)")
+		.option(
+			"--commands",
+			"List all <resource> <action> commands (can be large)",
+		)
 		.action(async (_opts, command) => {
 			const flags = command.optsWithGlobals() as {
 				json?: boolean;
 				pretty?: boolean;
 				min?: boolean;
+				commands?: boolean;
 			};
 
 			if (flags.json) {
@@ -216,14 +221,23 @@ export async function main(argv: string[], options: MainOptions = {}) {
 
 			process.stdout.write(`${ctx.schema.openapi.title ?? "(untitled)"}\n`);
 			process.stdout.write(`OpenAPI: ${ctx.schema.openapi.version}\n`);
+			process.stdout.write(`Servers: ${ctx.schema.servers.length}\n`);
+			process.stdout.write(`Auth Schemes: ${ctx.schema.authSchemes.length}\n`);
 			process.stdout.write(
 				`Spec: ${ctx.schema.spec.id} (${ctx.schema.spec.source})\n`,
 			);
-			process.stdout.write(`Fingerprint: ${ctx.schema.spec.fingerprint}\n`);
-			process.stdout.write(`Servers: ${ctx.schema.servers.length}\n`);
-			process.stdout.write(`Auth Schemes: ${ctx.schema.authSchemes.length}\n`);
 
-			if (ctx.schema.planned?.length) {
+			// Token-efficient default output: list resources (top-level commands)
+			// and push the user/agent toward --help for details.
+			process.stdout.write(`\nResources: ${ctx.commands.resources.length}\n\n`);
+			const resources = [...ctx.commands.resources].sort((a, b) =>
+				a.resource.localeCompare(b.resource),
+			);
+			for (const r of resources) {
+				process.stdout.write(`- ${r.resource} (${r.actions.length} actions)\n`);
+			}
+
+			if (flags.commands && ctx.schema.planned?.length) {
 				process.stdout.write(`\nCommands: ${ctx.schema.planned.length}\n\n`);
 				for (const op of ctx.schema.planned) {
 					const args = op.pathArgs.length
@@ -236,10 +250,10 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			}
 
 			process.stdout.write(
-				"\nTip: explore required flags with --help at each level:\n" +
-					`- ${program.name()} --help\n` +
+				"\nNext:\n" +
 					`- ${program.name()} <resource> --help\n` +
-					`- ${program.name()} <resource> <action> --help\n`,
+					`- ${program.name()} <resource> <action> --help\n` +
+					"\nNote: Use --help to discover required flags; avoid __schema --json for agent use (too verbose).\n",
 			);
 		});
 
@@ -321,9 +335,10 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			lines.push("");
 
 			lines.push("Agent workflow:");
-			lines.push(`  1) ${name} __schema --json --min`);
+			lines.push(`  1) ${name} __schema`);
 			lines.push(`  2) ${name} <resource> --help`);
 			lines.push(`  3) ${name} <resource> <action> --help`);
+			lines.push(`  4) ${name} <resource> <action> --curl`);
 			lines.push("");
 
 			return lines.join("\n");
