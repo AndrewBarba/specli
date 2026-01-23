@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Command } from "commander";
+import { Command, Help } from "commander";
 
 import { getArgValue, hasAnyArg } from "./runtime/argv.js";
 import { collectRepeatable } from "./runtime/collect.js";
@@ -44,6 +44,7 @@ type MainOptions = {
 
 export async function main(argv: string[], options: MainOptions = {}) {
 	const program = new Command();
+	const defaultHelp = new Help();
 
 	// Get version - use embedded version if available, otherwise read from package.json
 	const cliVersion = options.version ?? getPackageVersion();
@@ -67,11 +68,6 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--api-key <key>", "API key value")
 		.option("--json", "Machine-readable output")
 		.showHelpAfterError();
-
-	program.addHelpText(
-		"after",
-		`\nAgent workflow:\n  1) ${options.cliName ?? "specli"} __schema --json --min\n  2) ${options.cliName ?? "specli"} <resource> --help\n  3) ${options.cliName ?? "specli"} <resource> <action> --help\n`,
-	);
 
 	// If user asks for help and we have no embedded spec and no --spec, show minimal help.
 	const spec = getArgValue(argv, "--spec");
@@ -256,6 +252,81 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			server: options.server,
 			serverVars: options.serverVars,
 			auth: options.auth,
+		},
+	});
+
+	program.configureHelp({
+		formatHelp: (cmd, _helper) => {
+			// Only customize the top-level help. Subcommands should keep
+			// their own default or explicitly configured help.
+			if (cmd !== program) return defaultHelp.formatHelp(cmd, defaultHelp);
+
+			const lines: string[] = [];
+			const name = program.name();
+			const embedded = Boolean(options.embeddedSpecText);
+
+			lines.push(`Usage: ${name} [options] [command]`);
+			lines.push("");
+			lines.push(program.description());
+			lines.push("");
+
+			// OpenAPI-derived commands first (resources)
+			if (ctx.commands.resources.length > 0) {
+				lines.push("OpenAPI Commands:");
+				const resources = [...ctx.commands.resources]
+					.map((r) => r.resource)
+					.sort((a, b) => a.localeCompare(b));
+				for (const r of resources) {
+					lines.push(`  ${r}`);
+				}
+				lines.push("");
+			}
+
+			// Non-OpenAPI commands (built-ins)
+			lines.push("Global Commands:");
+			const globalCommands = ["login", "logout", "whoami", "__schema", "help"];
+			const maxCmdLen = Math.max(...globalCommands.map((c) => c.length));
+			for (const cmdName of globalCommands) {
+				const c = program.commands.find((c) => c.name() === cmdName);
+				if (!c) continue;
+				const term =
+					cmdName === "login"
+						? "login [token]"
+						: cmdName === "help"
+							? "help [command]"
+							: cmdName;
+				const desc = c.description();
+				const pad = " ".repeat(Math.max(1, maxCmdLen - cmdName.length + 2));
+				lines.push(`  ${term}${pad}${desc}`);
+			}
+			lines.push("");
+
+			// Global options last
+			lines.push("Global Options:");
+			const optionRows: Array<{ flags: string; desc: string }> = [];
+			for (const opt of program.options) {
+				// In compiled binaries the spec is embedded; --spec is meaningless.
+				if (embedded && opt.long === "--spec") continue;
+				optionRows.push({ flags: opt.flags, desc: opt.description });
+			}
+			optionRows.push({
+				flags: "-h, --help",
+				desc: "display help for command",
+			});
+			const maxOptLen = Math.max(...optionRows.map((o) => o.flags.length));
+			for (const row of optionRows) {
+				const pad = " ".repeat(Math.max(1, maxOptLen - row.flags.length + 2));
+				lines.push(`  ${row.flags}${pad}${row.desc}`);
+			}
+			lines.push("");
+
+			lines.push("Agent workflow:");
+			lines.push(`  1) ${name} __schema --json --min`);
+			lines.push(`  2) ${name} <resource> --help`);
+			lines.push(`  3) ${name} <resource> <action> --help`);
+			lines.push("");
+
+			return lines.join("\n");
 		},
 	});
 
