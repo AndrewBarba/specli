@@ -21,8 +21,6 @@ function getPackageVersion(): string {
 	}
 }
 
-import { stableStringify } from "./core/stable-json.js";
-import { toMinimalSchemaOutput } from "./model/schema.js";
 import { readStdinText } from "./runtime/compat.js";
 import { buildRuntimeContext } from "./runtime/context.js";
 import { addGeneratedCommands } from "./runtime/generated.js";
@@ -66,7 +64,6 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--username <username>", "Basic auth username")
 		.option("--password <password>", "Basic auth password")
 		.option("--api-key <key>", "API key value")
-		.option("--json", "Machine-readable output")
 		.showHelpAfterError();
 
 	// If user asks for help and we have no embedded spec and no --spec, show minimal help.
@@ -194,30 +191,15 @@ export async function main(argv: string[], options: MainOptions = {}) {
 
 	program
 		.command("__schema")
-		.description("Print indexed operations (machine-readable when --json)")
-		.option("--pretty", "Pretty-print JSON when used with --json")
-		.option("--min", "Minimal JSON output (commands + metadata only)")
+		.description("Print indexed operations")
 		.option(
 			"--commands",
 			"List all <resource> <action> commands (can be large)",
 		)
 		.action(async (_opts, command) => {
 			const flags = command.optsWithGlobals() as {
-				json?: boolean;
-				pretty?: boolean;
-				min?: boolean;
 				commands?: boolean;
 			};
-
-			if (flags.json) {
-				const pretty = Boolean(flags.pretty);
-				const payload = flags.min
-					? toMinimalSchemaOutput(ctx.schema)
-					: ctx.schema;
-				const text = stableStringify(payload, { space: pretty ? 2 : 0 });
-				process.stdout.write(`${text}\n`);
-				return;
-			}
 
 			process.stdout.write(`${ctx.schema.openapi.title ?? "(untitled)"}\n`);
 			process.stdout.write(`OpenAPI: ${ctx.schema.openapi.version}\n`);
@@ -252,8 +234,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			process.stdout.write(
 				"\nNext:\n" +
 					`- ${program.name()} <resource> --help\n` +
-					`- ${program.name()} <resource> <action> --help\n` +
-					"\nNote: Use --help to discover required flags; avoid __schema --json for agent use (too verbose).\n",
+					`- ${program.name()} <resource> <action> --help\n`,
 			);
 		});
 

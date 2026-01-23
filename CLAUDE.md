@@ -15,7 +15,7 @@ This file is guidance for agents working in this repo.
 - `bin/cli.sh`: package bin wrapper; prefers Bun, falls back to Node (but `compile` requires Bun)
 
 - `src/cli/main.ts`: the "runtime CLI" used by compiled binaries
-  - global flags live here (`--server`, `--server-var`, `--auth`, `--bearer-token`, `--json`, ...)
+  - global flags live here (`--server`, `--server-var`, `--auth`, `--bearer-token`, ...)
   - built-in subcommands live here: `login`, `logout`, `whoami`, `__schema`
 
 - `src/cli/exec.ts`: glue that turns `specli exec <spec> ...` into a call to `main()` with `--spec <spec>`
@@ -56,9 +56,6 @@ Run the CLI from source (recommended while iterating):
 ```sh
 # Inspect a spec's generated command mapping
 bun run ./src/cli.ts exec ./openapi.yaml __schema
-
-# Machine-readable schema output
-bun run ./src/cli.ts exec ./openapi.yaml __schema --json
 
 # Preview an operation without executing
 bun run ./src/cli.ts exec ./openapi.yaml users list --curl

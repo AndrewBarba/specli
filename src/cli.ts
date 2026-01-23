@@ -45,7 +45,6 @@ program
 	.option("--password <password>", "Basic auth password")
 	.option("--api-key <key>", "API key value")
 	.option("--profile <name>", "Profile name")
-	.option("--json", "Machine-readable output")
 	.allowUnknownOption()
 	.allowExcessArguments()
 	.action(async (spec, options, command) => {
