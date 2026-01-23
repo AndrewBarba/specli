@@ -370,13 +370,35 @@ export async function buildRequest(
 function buildCurl(req: Request, body: string | undefined): string {
 	const parts: string[] = ["curl", "-sS", "-X", req.method];
 	for (const [k, v] of req.headers.entries()) {
-		parts.push("-H", shellQuote(`${k}: ${v}`));
+		const value = k.toLowerCase() === "authorization" ? maskAuthHeader(v) : v;
+		parts.push("-H", shellQuote(`${k}: ${value}`));
 	}
 	if (typeof body === "string") {
 		parts.push("--data", shellQuote(body));
 	}
 	parts.push(shellQuote(req.url));
 	return parts.join(" ");
+}
+
+function maskAuthHeader(value: string): string {
+	// Mask token in authorization header, preserving scheme (e.g., "Bearer")
+	// "Bearer abc123xyz" -> "Bearer abc...xyz"
+	const parts = value.split(" ");
+	if (parts.length === 2) {
+		const [scheme, token] = parts;
+		return `${scheme} ${maskToken(token)}`;
+	}
+	// No scheme, just mask the whole value
+	return maskToken(value);
+}
+
+function maskToken(token: string): string {
+	if (token.length <= 6) {
+		return "***";
+	}
+	const prefix = token.slice(0, 3);
+	const suffix = token.slice(-3);
+	return `${prefix}...${suffix}`;
 }
 
 function shellQuote(value: string): string {

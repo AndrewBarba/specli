@@ -373,3 +373,103 @@ describe("formatAjvErrors", () => {
 		expect(msg).toBe("/ missing required property 'name'");
 	});
 });
+
+describe("buildRequest (curl masking)", () => {
+	test("masks authorization header token in curl output", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action: CommandAction = {
+				id: "test",
+				key: "GET /contacts",
+				action: "list",
+				pathArgs: [],
+				method: "GET",
+				path: "/contacts",
+				tags: [],
+				style: "rest",
+				positionals: [],
+				flags: [],
+				params: [],
+				auth: {
+					alternatives: [[{ key: "bearerAuth", scopes: [] }]],
+				},
+			};
+
+			const { curl } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: {},
+				globals: { bearerToken: "sk_test_1234567890abcdef" },
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [
+					{
+						key: "bearerAuth",
+						kind: "http-bearer",
+						scheme: "bearer",
+					},
+				],
+			});
+
+			// Should contain masked token, not the real one
+			expect(curl).toContain("Bearer sk_...def");
+			expect(curl).not.toContain("sk_test_1234567890abcdef");
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("masks short tokens with ***", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action: CommandAction = {
+				id: "test",
+				key: "GET /contacts",
+				action: "list",
+				pathArgs: [],
+				method: "GET",
+				path: "/contacts",
+				tags: [],
+				style: "rest",
+				positionals: [],
+				flags: [],
+				params: [],
+				auth: {
+					alternatives: [[{ key: "bearerAuth", scopes: [] }]],
+				},
+			};
+
+			const { curl } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: {},
+				globals: { bearerToken: "abc" },
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [
+					{
+						key: "bearerAuth",
+						kind: "http-bearer",
+						scheme: "bearer",
+					},
+				],
+			});
+
+			// Short tokens should be fully masked
+			expect(curl).toContain("Bearer ***");
+			expect(curl).not.toContain("Bearer abc");
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+});
