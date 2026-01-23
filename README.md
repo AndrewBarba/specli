@@ -2,6 +2,20 @@
 
 Turn any OpenAPI spec into a CLI.
 
+## Demo
+
+Compile this weather OpenAPI spec to an executable:
+
+```sh
+npx specli compile https://raw.githubusercontent.com/open-meteo/open-meteo/refs/heads/main/openapi.yml --name weather
+```
+
+Ask an agent what the current weather is:
+
+```sh
+opencode run 'Using ./out/weather what is the current weather in new york city'
+```
+
 ## Install
 
 ```bash
@@ -412,20 +426,4 @@ bun run build
 bun test
 bun run lint
 bun run typecheck
-```
-
-## Demos
-
-### Weather
-
-Compile the weather spec to an executable:
-
-```sh
-npx specli compile https://raw.githubusercontent.com/open-meteo/open-meteo/refs/heads/main/openapi.yml --name weather
-```
-
-Ask an agent what the current weather is:
-
-```sh
-opencode run 'Using ./out/weather what is the current weather in new york city'
 ```
