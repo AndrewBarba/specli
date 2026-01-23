@@ -110,6 +110,103 @@ function inferResource(op: NormalizedOperation): string {
 	return pluralize(kebabCase(cleaned || "api"));
 }
 
+/**
+ * Extracts a meaningful disambiguator from an operationId by removing
+ * redundant parts that are already represented in the command name.
+ *
+ * Examples:
+ *   - "createDeployment" with action "create" and resource "deployments" -> null (no extra info)
+ *   - "uploadDeploymentFiles" with action "create" and resource "deployments" -> "upload-files"
+ *   - "getDeploymentEvents" with action "get" and resource "deployments" -> "events"
+ */
+function extractDisambiguator(
+	operationId: string,
+	action: string,
+	resource: string,
+): string | null {
+	// Convert to kebab for consistent comparison
+	let name = kebabCase(operationId);
+
+	// Remove action prefix if it matches the command's action or its synonyms
+	// This avoids redundancy like "get-get-deployment" or "get-list-files"
+	const actionSynonyms: Record<string, string[]> = {
+		get: ["get", "retrieve", "read", "list", "search"],
+		list: ["list", "search", "get"],
+		create: ["create", "post"],
+		update: ["update", "patch", "put"],
+		delete: ["delete", "remove"],
+	};
+	const synonyms = actionSynonyms[action] ?? [action];
+
+	for (const synonym of synonyms) {
+		if (name.startsWith(`${synonym}-`)) {
+			name = name.slice(synonym.length + 1);
+			break;
+		}
+	}
+
+	// Remove resource name (singular and plural forms) from anywhere in the string
+	const singularResource = resource.replace(/s$/, "");
+	const resourcePatterns = [resource, singularResource];
+	for (const pattern of resourcePatterns) {
+		// Remove from start: "deployment-events" -> "events"
+		if (name.startsWith(`${pattern}-`)) {
+			name = name.slice(pattern.length + 1);
+		}
+		// Remove from middle: "upload-deployment-files" -> "upload-files"
+		else if (name.includes(`-${pattern}-`)) {
+			name = name.replace(`-${pattern}-`, "-");
+		}
+		// Remove from end: "upload-deployment" -> "upload"
+		else if (name.endsWith(`-${pattern}`)) {
+			name = name.slice(0, -(pattern.length + 1));
+		}
+		// Exact match means no extra info
+		if (name === pattern) {
+			return null;
+		}
+	}
+
+	// If nothing meaningful remains, return null
+	if (!name || name === action) return null;
+
+	return name;
+}
+
+/**
+ * Derives a disambiguated action name for colliding operations.
+ * Tries to create meaningful names like "get-events" instead of "get-get-deployment-events-1".
+ */
+function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
+	if (op.operationId) {
+		const disambiguator = extractDisambiguator(
+			op.operationId,
+			op.action,
+			op.resource,
+		);
+		if (disambiguator) {
+			// Use the disambiguator directly as action: "upload-files", "get-events"
+			return `${op.action}-${disambiguator}`;
+		}
+	}
+
+	// Fallback: try to extract something from the path
+	const segments = getPathSegments(op.path);
+	// Look for the last non-parameter segment that isn't the resource
+	const singularResource = op.resource.replace(/s$/, "");
+	for (let i = segments.length - 1; i >= 0; i--) {
+		const seg = segments[i];
+		if (!seg || seg.startsWith("{")) continue;
+		const kebabSeg = kebabCase(seg);
+		if (kebabSeg !== op.resource && kebabSeg !== singularResource) {
+			return `${op.action}-${kebabSeg}`;
+		}
+	}
+
+	// Last resort: append numeric suffix
+	return `${op.action}-${idx}`;
+}
+
 function canonicalizeAction(action: string): string {
 	const a = kebabCase(action);
 
@@ -209,11 +306,7 @@ export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 		const idx = (seen.get(key) ?? 0) + 1;
 		seen.set(key, idx);
 
-		const suffix = op.operationId
-			? kebabCase(op.operationId)
-			: kebabCase(`${op.method}-${op.path}`);
-
-		const disambiguatedAction = `${op.action}-${suffix}-${idx}`;
+		const disambiguatedAction = deriveDisambiguatedAction(op, idx);
 
 		return {
 			...op,
