@@ -1,7 +1,7 @@
 {
 	"name": "specli",
 	"version": "0.0.35",
-	"description": "Run any OpenAPI spec as a CLI. Built for Agents.",
+	"description": "Run any OpenAPI spec as an Agent optimized executable",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/AndrewBarba/specli.git"
