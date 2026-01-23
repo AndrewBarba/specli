@@ -55,21 +55,32 @@ export function derivePositionals(action: ActionShapeForCli): PositionalArg[] {
 }
 
 export function deriveFlags(action: ActionShapeForCli): FlagsIndex {
+	const flagParams = action.params.filter((p: ParamSpec) => p.kind === "flag");
+
+	// Deduplicate by flag name (e.g., "exclude_ids" and "exclude-ids" both become "--exclude-ids")
+	const seenFlags = new Set<string>();
+	const uniqueFlags: typeof flagParams = [];
+
+	for (const p of flagParams) {
+		if (!seenFlags.has(p.flag)) {
+			seenFlags.add(p.flag);
+			uniqueFlags.push(p);
+		}
+	}
+
 	return {
-		flags: action.params
-			.filter((p: ParamSpec) => p.kind === "flag")
-			.map((p: ParamSpec) => ({
-				in: p.in,
-				name: p.name,
-				flag: p.flag,
-				required: p.required,
-				description: p.description,
-				type: p.type,
-				format: p.format,
-				enum: p.enum,
-				itemType: p.itemType,
-				itemFormat: p.itemFormat,
-				itemEnum: p.itemEnum,
-			})),
+		flags: uniqueFlags.map((p: ParamSpec) => ({
+			in: p.in,
+			name: p.name,
+			flag: p.flag,
+			required: p.required,
+			description: p.description,
+			type: p.type,
+			format: p.format,
+			enum: p.enum,
+			itemType: p.itemType,
+			itemFormat: p.itemFormat,
+			itemEnum: p.itemEnum,
+		})),
 	};
 }
