@@ -63,7 +63,7 @@ specli compile <spec> [options]
 | Option | Description |
 |--------|-------------|
 | `--name <name>` | Binary name (default: derived from spec title) |
-| `--outfile <path>` | Output path (default: `./dist/<name>`) |
+| `--outfile <path>` | Output path (default: `./out/<name>`) |
 | `--target <target>` | Cross-compile target (e.g. `bun-linux-x64`) |
 | `--minify` | Enable minification |
 | `--bytecode` | Enable bytecode compilation |
@@ -78,14 +78,14 @@ specli compile <spec> [options]
 ```bash
 # Compile with auto-derived name
 specli compile ./openapi.yaml
-# Creates: ./dist/my-api
+# Creates: ./out/my-api
 
 # Compile with explicit name
 specli compile ./openapi.yaml --name myapi
-# Creates: ./dist/myapi
+# Creates: ./out/myapi
 
 # Cross-compile for Linux
-specli compile ./openapi.json --target bun-linux-x64 --outfile ./dist/myapi-linux
+specli compile ./openapi.json --target bun-linux-x64 --outfile ./out/myapi-linux
 
 # Bake in defaults
 specli compile https://api.example.com/openapi.json \
