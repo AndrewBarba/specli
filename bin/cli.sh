@@ -22,15 +22,29 @@ for arg in "$@"; do
 	fi
 done
 
-# 1. Prefer Bun if installed
-if command -v bun >/dev/null 2>&1; then
+# Check if Bun version is >= 1.3
+bun_version_ok() {
+	version=$(bun --version 2>/dev/null) || return 1
+	major=$(printf '%s' "$version" | cut -d. -f1)
+	minor=$(printf '%s' "$version" | cut -d. -f2)
+	[ "$major" -gt 1 ] || { [ "$major" -eq 1 ] && [ "$minor" -ge 3 ]; }
+}
+
+# 1. Prefer Bun if installed and version >= 1.3
+if command -v bun >/dev/null 2>&1 && bun_version_ok; then
 	exec bun "$CLI_JS" "$@"
 fi
 
-# 2. Bun is required for compile
+# 2. Bun >= 1.3 is required for compile
 if [ "$is_compile" -eq 1 ]; then
-	printf '%s\n' "Error: The 'compile' command requires Bun." "Install Bun: https://bun.sh" >&2
-	exit 1
+	if ! command -v bun >/dev/null 2>&1; then
+		printf '%s\n' "Error: The 'compile' command requires Bun >= 1.3." "Install Bun: https://bun.sh" >&2
+		exit 1
+	fi
+	if ! bun_version_ok; then
+		printf '%s\n' "Error: The 'compile' command requires Bun >= 1.3 (found $(bun --version))." "Update Bun: https://bun.sh" >&2
+		exit 1
+	fi
 fi
 
 # 3. Fallback to Node.js
