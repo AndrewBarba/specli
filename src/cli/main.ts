@@ -68,6 +68,11 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--json", "Machine-readable output")
 		.showHelpAfterError();
 
+	program.addHelpText(
+		"after",
+		`\nAgent workflow:\n  1) ${options.cliName ?? "specli"} __schema --json --min\n  2) ${options.cliName ?? "specli"} <resource> --help\n  3) ${options.cliName ?? "specli"} <resource> <action> --help\n`,
+	);
+
 	// If user asks for help and we have no embedded spec and no --spec, show minimal help.
 	const spec = getArgValue(argv, "--spec");
 	const wantsHelp = hasAnyArg(argv, ["-h", "--help"]);
@@ -233,6 +238,13 @@ export async function main(argv: string[], options: MainOptions = {}) {
 					);
 				}
 			}
+
+			process.stdout.write(
+				"\nTip: explore required flags with --help at each level:\n" +
+					`- ${program.name()} --help\n` +
+					`- ${program.name()} <resource> --help\n` +
+					`- ${program.name()} <resource> <action> --help\n`,
+			);
 		});
 
 	addGeneratedCommands(program, {
@@ -246,6 +258,67 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			auth: options.auth,
 		},
 	});
+
+	if (argv.length <= 2) {
+		program.outputHelp();
+		return;
+	}
+
+	const args = argv.slice(2);
+	const flagWithValue = new Set([
+		"--spec",
+		"--server",
+		"--server-var",
+		"--auth",
+		"--bearer-token",
+		"--oauth-token",
+		"--username",
+		"--password",
+		"--api-key",
+	]);
+	const boolFlags = new Set(["--json"]);
+	const passthroughFlags = new Set(["-h", "--help", "-v", "--version"]);
+
+	let hasSubcommand = false;
+	let onlyKnownGlobals = true;
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i];
+		if (!a) continue;
+
+		if (passthroughFlags.has(a)) break;
+		if (boolFlags.has(a)) continue;
+		if (flagWithValue.has(a)) {
+			i++;
+			continue;
+		}
+		if (a.startsWith("--") && a.includes("=")) {
+			const key = a.slice(0, a.indexOf("="));
+			if (
+				!flagWithValue.has(key) &&
+				!boolFlags.has(key) &&
+				!passthroughFlags.has(key)
+			) {
+				onlyKnownGlobals = false;
+			}
+			continue;
+		}
+		if (a.startsWith("--") || a.startsWith("-")) {
+			onlyKnownGlobals = false;
+			continue;
+		}
+
+		hasSubcommand = true;
+		break;
+	}
+
+	if (
+		!hasSubcommand &&
+		onlyKnownGlobals &&
+		!hasAnyArg(argv, ["-h", "--help", "-v", "--version"])
+	) {
+		program.outputHelp();
+		return;
+	}
 
 	await program.parseAsync(argv);
 }
