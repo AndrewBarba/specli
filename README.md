@@ -1,5 +1,7 @@
 # specli
 
+[![npm version](https://img.shields.io/npm/v/specli.svg)](https://www.npmjs.com/package/specli)
+
 Turn any OpenAPI spec into a CLI.
 
 ## Demo
