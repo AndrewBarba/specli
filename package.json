@@ -1,6 +1,6 @@
 {
 	"name": "specli",
-	"version": "0.0.31",
+	"version": "0.0.32",
 	"description": "Run any OpenAPI spec as a CLI. Built for Agents.",
 	"repository": {
 		"type": "git",
