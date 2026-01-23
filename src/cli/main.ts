@@ -234,7 +234,9 @@ export async function main(argv: string[], options: MainOptions = {}) {
 					const args = op.pathArgs.length
 						? ` ${op.pathArgs.map((a) => `<${a}>`).join(" ")}`
 						: "";
-					process.stdout.write(`- specli ${op.resource} ${op.action}${args}\n`);
+					process.stdout.write(
+						`- ${program.name()} ${op.resource} ${op.action}${args}\n`,
+					);
 				}
 			}
 		});
