@@ -221,15 +221,9 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			process.stdout.write(`Fingerprint: ${ctx.schema.spec.fingerprint}\n`);
 			process.stdout.write(`Servers: ${ctx.schema.servers.length}\n`);
 			process.stdout.write(`Auth Schemes: ${ctx.schema.authSchemes.length}\n`);
-			process.stdout.write(`Operations: ${ctx.schema.operations.length}\n`);
-
-			for (const op of ctx.schema.operations) {
-				const id = op.operationId ? ` (${op.operationId})` : "";
-				process.stdout.write(`- ${op.method} ${op.path}${id}\n`);
-			}
 
 			if (ctx.schema.planned?.length) {
-				process.stdout.write("\nPlanned commands:\n");
+				process.stdout.write(`\nCommands: ${ctx.schema.planned.length}\n\n`);
 				for (const op of ctx.schema.planned) {
 					const args = op.pathArgs.length
 						? ` ${op.pathArgs.map((a) => `<${a}>`).join(" ")}`
