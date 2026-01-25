@@ -8,7 +8,7 @@ import type { ServerInfo } from "../cli/parse/servers.js";
 import { buildRuntimeContext } from "../cli/runtime/context.js";
 import { execute, prepare } from "../cli/runtime/execute.js";
 import type { RuntimeGlobals } from "../cli/runtime/request.js";
-import type { CommandResult } from "../cli/runtime/result.js";
+import type { CommandResult, DataResult } from "../cli/runtime/result.js";
 
 /**
  * Custom filesystem interface for reading files.
@@ -119,15 +119,15 @@ export type SpecliClient = {
 
 	/**
 	 * Get schema information about the loaded spec.
-	 * Useful for introspection and discovery.
+	 * Returns a DataResult that can be rendered with renderToString().
 	 */
-	schema(): SchemaInfo;
+	schema(): DataResult;
 
 	/**
 	 * Get current authentication status.
-	 * Reports what auth credentials are configured on this client.
+	 * Returns a DataResult that can be rendered with renderToString().
 	 */
-	whoami(): WhoamiInfo;
+	whoami(): DataResult;
 
 	/** Get server information */
 	servers: ServerInfo[];
@@ -286,8 +286,8 @@ export async function createClient(
 			return result;
 		},
 
-		schema(): SchemaInfo {
-			return {
+		schema(): DataResult {
+			const data: SchemaInfo = {
 				title: ctx.schema.openapi.title,
 				version: ctx.schema.openapi.version,
 				specId: ctx.loaded.id,
@@ -298,9 +298,14 @@ export async function createClient(
 					actionCount: r.actions.length,
 				})),
 			};
+			return {
+				type: "data",
+				kind: "schema",
+				data,
+			};
 		},
 
-		whoami(): WhoamiInfo {
+		whoami(): DataResult {
 			const token = bearerToken;
 			const hasAuth = Boolean(token || apiKey || basicAuth);
 
@@ -312,10 +317,15 @@ export async function createClient(
 				maskedToken = `${token.slice(0, 4)}...`;
 			}
 
-			return {
+			const data: WhoamiInfo = {
 				authenticated: hasAuth,
 				authScheme,
 				maskedToken,
+			};
+			return {
+				type: "data",
+				kind: "whoami",
+				data,
 			};
 		},
 
