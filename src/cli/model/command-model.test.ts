@@ -16,6 +16,7 @@ describe("buildCommandModel", () => {
 				action: "list",
 				canonicalAction: "list",
 				pathArgs: [],
+				rawPathArgs: [],
 				style: "rest",
 			},
 			{
@@ -28,6 +29,7 @@ describe("buildCommandModel", () => {
 				action: "get",
 				canonicalAction: "get",
 				pathArgs: ["id"],
+				rawPathArgs: ["id"],
 				style: "rest",
 			},
 		];

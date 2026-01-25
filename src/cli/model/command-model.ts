@@ -18,8 +18,10 @@ export type CommandAction = {
 	id: string;
 	key: string;
 	action: string;
-	// Derived path arguments. These become positionals later.
+	/** CLI-friendly path arg names (kebab-case) for display */
 	pathArgs: string[];
+	/** Original path template variable names (for URL substitution) */
+	rawPathArgs: string[];
 	method: string;
 	path: string;
 	operationId?: string;
@@ -93,6 +95,7 @@ export function buildCommandModel(
 			key: op.key,
 			action: op.action,
 			pathArgs: op.pathArgs,
+			rawPathArgs: op.rawPathArgs,
 			method: op.method,
 			path: op.path,
 			operationId: op.operationId,

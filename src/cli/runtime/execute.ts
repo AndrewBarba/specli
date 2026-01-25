@@ -3,11 +3,19 @@ import type { AuthScheme } from "../parse/auth-schemes.js";
 import type { ServerInfo } from "../parse/servers.js";
 
 import type { BodyFlagDef } from "./body-flags.js";
+import { getExitCode, getOutputStream, renderToString } from "./render.js";
 import {
 	buildRequest,
 	type EmbeddedDefaults,
 	type RuntimeGlobals,
 } from "./request.js";
+import type {
+	CommandResult,
+	CurlResult,
+	ErrorResult,
+	PreparedRequest,
+	SuccessResult,
+} from "./result.js";
 
 export type ExecuteInput = {
 	action: CommandAction;
@@ -23,66 +31,148 @@ export type ExecuteInput = {
 	resourceName?: string;
 };
 
-export type ExecuteResult = {
-	ok: boolean;
-	status: number;
-	body: unknown;
-	curl: string;
-};
-
 /**
- * Format an error message with a help hint.
+ * Build a prepared request without executing it.
+ * Returns a PreparedResult or ErrorResult (for validation failures).
  */
-function formatError(
-	message: string,
-	resourceName: string | undefined,
-	actionName: string,
-): string {
-	const helpCmd = resourceName
-		? `${resourceName} ${actionName} --help`
-		: `${actionName} --help`;
-	return `${message}\n\nRun '${helpCmd}' to see available options.`;
+export async function prepare(
+	input: Omit<ExecuteInput, "resourceName">,
+): Promise<CommandResult> {
+	try {
+		const { request, curl, body } = await buildRequest({
+			specId: input.specId,
+			action: input.action,
+			positionalValues: input.positionalValues,
+			flagValues: input.flagValues,
+			globals: input.globals,
+			servers: input.servers,
+			authSchemes: input.authSchemes,
+			embeddedDefaults: input.embeddedDefaults,
+			bodyFlagDefs: input.bodyFlagDefs,
+		});
+
+		const headers: Record<string, string> = {};
+		for (const [key, value] of request.headers.entries()) {
+			headers[key] = value;
+		}
+
+		const prepared: PreparedRequest = {
+			method: request.method,
+			url: request.url,
+			headers,
+			body,
+			curl,
+		};
+
+		return {
+			type: "prepared",
+			request: prepared,
+		};
+	} catch (err) {
+		return {
+			type: "error",
+			message: err instanceof Error ? err.message : String(err),
+		};
+	}
 }
 
 /**
- * Execute an action and return the result as data.
+ * Execute an action and return the result as a CommandResult.
  * This is the core execution function used by both CLI and programmatic API.
  */
 export async function execute(
 	input: Omit<ExecuteInput, "resourceName">,
-): Promise<ExecuteResult> {
-	const { request, curl } = await buildRequest({
-		specId: input.specId,
-		action: input.action,
-		positionalValues: input.positionalValues,
-		flagValues: input.flagValues,
-		globals: input.globals,
-		servers: input.servers,
-		authSchemes: input.authSchemes,
-		embeddedDefaults: input.embeddedDefaults,
-		bodyFlagDefs: input.bodyFlagDefs,
-	});
+): Promise<CommandResult> {
+	const startTime = Date.now();
+	const startedAt = new Date().toISOString();
 
-	const res = await fetch(request);
-	const contentType = res.headers.get("content-type") ?? "";
+	try {
+		const { request, curl, body } = await buildRequest({
+			specId: input.specId,
+			action: input.action,
+			positionalValues: input.positionalValues,
+			flagValues: input.flagValues,
+			globals: input.globals,
+			servers: input.servers,
+			authSchemes: input.authSchemes,
+			embeddedDefaults: input.embeddedDefaults,
+			bodyFlagDefs: input.bodyFlagDefs,
+		});
 
-	const text = await res.text();
-	let body: unknown = text;
-
-	if (contentType.includes("json") && text) {
-		try {
-			body = JSON.parse(text);
-		} catch {
-			// keep as text
+		// Build PreparedRequest before fetch (since body gets consumed)
+		const headers: Record<string, string> = {};
+		for (const [key, value] of request.headers.entries()) {
+			headers[key] = value;
 		}
-	}
+		const preparedRequest: PreparedRequest = {
+			method: request.method,
+			url: request.url,
+			headers,
+			body,
+			curl,
+		};
 
-	return {
-		ok: res.ok,
-		status: res.status,
-		body,
-		curl,
-	};
+		// Handle --curl mode
+		if (input.globals.curl) {
+			const result: CurlResult = {
+				type: "curl",
+				curl,
+				request: preparedRequest,
+			};
+			return result;
+		}
+
+		// Execute the request
+		const res = await fetch(request);
+		const durationMs = Date.now() - startTime;
+
+		const contentType = res.headers.get("content-type") ?? "";
+		const rawBody = await res.text();
+
+		let parsedBody: unknown = rawBody;
+		if (contentType.includes("json") && rawBody) {
+			try {
+				parsedBody = JSON.parse(rawBody);
+			} catch {
+				// keep as text
+			}
+		}
+
+		// Build response headers
+		const responseHeaders: Record<string, string> = {};
+		for (const [key, value] of res.headers.entries()) {
+			responseHeaders[key] = value;
+		}
+
+		const result: SuccessResult = {
+			type: "success",
+			request: preparedRequest,
+			response: {
+				status: res.status,
+				ok: res.ok,
+				headers: responseHeaders,
+				body: parsedBody,
+				rawBody,
+			},
+			timing: {
+				startedAt,
+				durationMs,
+			},
+		};
+
+		return result;
+	} catch (err) {
+		const durationMs = Date.now() - startTime;
+		const result: ErrorResult = {
+			type: "error",
+			message: err instanceof Error ? err.message : String(err),
+			timing: {
+				startedAt,
+				durationMs,
+			},
+		};
+		return result;
+	}
 }
 
 /**
@@ -93,61 +183,27 @@ export async function executeAction(input: ExecuteInput): Promise<void> {
 	const actionName = input.action.action;
 	const resourceName = input.resourceName;
 
-	try {
-		if (input.globals.curl) {
-			const { curl } = await buildRequest({
-				specId: input.specId,
-				action: input.action,
-				positionalValues: input.positionalValues,
-				flagValues: input.flagValues,
-				globals: input.globals,
-				servers: input.servers,
-				authSchemes: input.authSchemes,
-				embeddedDefaults: input.embeddedDefaults,
-				bodyFlagDefs: input.bodyFlagDefs,
-			});
-			process.stdout.write(`${curl}\n`);
-			return;
-		}
+	// Execute and get the result
+	const result = await execute(input);
 
-		const result = await execute(input);
-
-		if (!result.ok) {
-			if (input.globals.json) {
-				process.stdout.write(
-					`${JSON.stringify({ status: result.status, body: result.body })}\n`,
-				);
-			} else {
-				process.stderr.write(`HTTP ${result.status}\n`);
-				process.stderr.write(
-					`${typeof result.body === "string" ? result.body : JSON.stringify(result.body, null, 2)}\n`,
-				);
-			}
-			process.exitCode = 1;
-			return;
-		}
-
-		if (input.globals.json) {
-			process.stdout.write(`${JSON.stringify(result.body)}\n`);
-			return;
-		}
-
-		// default (human + agent readable)
-		if (typeof result.body === "string") {
-			process.stdout.write(result.body);
-			if (!result.body.endsWith("\n")) process.stdout.write("\n");
-		} else {
-			process.stdout.write(`${JSON.stringify(result.body, null, 2)}\n`);
-		}
-	} catch (err) {
-		const rawMessage = err instanceof Error ? err.message : String(err);
-		const message = formatError(rawMessage, resourceName, actionName);
-
-		if (input.globals.json) {
-			process.stdout.write(`${JSON.stringify({ error: rawMessage })}\n`);
-		} else {
-			process.stderr.write(`error: ${message}\n`);
-		}
-		process.exitCode = 1;
+	// Add context for error messages
+	if (result.type === "error" || result.type === "validation") {
+		result.resource = resourceName;
+		result.action = actionName;
 	}
+
+	// Render the result
+	const format = input.globals.json ? "json" : "text";
+	const output = renderToString(result, { format });
+
+	// Write to appropriate stream
+	const stream = getOutputStream(result);
+	if (stream === "stderr") {
+		process.stderr.write(output);
+	} else {
+		process.stdout.write(output);
+	}
+
+	// Set exit code
+	process.exitCode = getExitCode(result);
 }

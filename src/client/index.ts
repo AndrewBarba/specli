@@ -6,8 +6,9 @@ import type { CommandAction } from "../cli/model/command-model.js";
 import type { AuthScheme } from "../cli/parse/auth-schemes.js";
 import type { ServerInfo } from "../cli/parse/servers.js";
 import { buildRuntimeContext } from "../cli/runtime/context.js";
-import { type ExecuteResult, execute } from "../cli/runtime/execute.js";
+import { execute, prepare } from "../cli/runtime/execute.js";
 import type { RuntimeGlobals } from "../cli/runtime/request.js";
+import type { CommandResult } from "../cli/runtime/result.js";
 
 export type SpecliOptions = {
 	/** The OpenAPI spec URL or file path */
@@ -62,13 +63,26 @@ export type SpecliClient = {
 	/** Get detailed help for a specific action */
 	help(resource: string, action: string): ActionDetail | undefined;
 
-	/** Execute an API action */
+	/**
+	 * Execute an API action and return the full CommandResult.
+	 */
 	exec(
 		resource: string,
 		action: string,
 		args?: string[],
 		flags?: Record<string, unknown>,
-	): Promise<ExecuteResult>;
+	): Promise<CommandResult>;
+
+	/**
+	 * Prepare a request without executing it.
+	 * Returns a PreparedResult or ErrorResult.
+	 */
+	prepare(
+		resource: string,
+		action: string,
+		args?: string[],
+		flags?: Record<string, unknown>,
+	): Promise<CommandResult>;
 
 	/** Get server information */
 	servers: ServerInfo[];
@@ -163,13 +177,18 @@ export async function createClient(
 			action: string,
 			args: string[] = [],
 			flags: Record<string, unknown> = {},
-		): Promise<ExecuteResult> {
+		): Promise<CommandResult> {
 			const actionDef = findAction(ctx, resource, action);
 			if (!actionDef) {
-				throw new Error(`Unknown action: ${resource} ${action}`);
+				return {
+					type: "error",
+					message: `Unknown action: ${resource} ${action}`,
+					resource,
+					action,
+				};
 			}
 
-			return execute({
+			const result = await execute({
 				specId: ctx.loaded.id,
 				action: actionDef,
 				positionalValues: args,
@@ -178,6 +197,45 @@ export async function createClient(
 				servers: ctx.servers,
 				authSchemes: ctx.authSchemes,
 			});
+
+			// Add context to the result
+			result.resource = resource;
+			result.action = action;
+
+			return result;
+		},
+
+		async prepare(
+			resource: string,
+			action: string,
+			args: string[] = [],
+			flags: Record<string, unknown> = {},
+		): Promise<CommandResult> {
+			const actionDef = findAction(ctx, resource, action);
+			if (!actionDef) {
+				return {
+					type: "error",
+					message: `Unknown action: ${resource} ${action}`,
+					resource,
+					action,
+				};
+			}
+
+			const result = await prepare({
+				specId: ctx.loaded.id,
+				action: actionDef,
+				positionalValues: args,
+				flagValues: flags,
+				globals,
+				servers: ctx.servers,
+				authSchemes: ctx.authSchemes,
+			});
+
+			// Add context to the result
+			result.resource = resource;
+			result.action = action;
+
+			return result;
 		},
 
 		servers: ctx.servers,
@@ -187,5 +245,17 @@ export async function createClient(
 
 export type { AuthScheme } from "../cli/parse/auth-schemes.js";
 export type { ServerInfo } from "../cli/parse/servers.js";
-// Re-export useful types from dependencies
-export type { ExecuteResult } from "../cli/runtime/execute.js";
+// Re-export useful types from runtime
+export type {
+	CommandResult,
+	CurlResult,
+	DataResult,
+	ErrorResult,
+	PreparedRequest,
+	PreparedResult,
+	ResponseData,
+	SuccessResult,
+	Timing,
+	ValidationError,
+	ValidationResult,
+} from "../cli/runtime/result.js";

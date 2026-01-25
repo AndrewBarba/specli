@@ -346,8 +346,8 @@ const help = api.help("users", "get");
 
 // Execute an API call
 const result = await api.exec("users", "get", ["123"], { include: "profile" });
-if (result.ok) {
-  console.log(result.body);
+if (result.type === "success" && result.response.ok) {
+  console.log(result.response.body);
 }
 ```
 
@@ -371,16 +371,40 @@ if (result.ok) {
 | `help(resource, action)` | Get detailed info about an action |
 | `exec(resource, action, args?, flags?)` | Execute an API call |
 
-### ExecuteResult
+### CommandResult
 
-The `exec()` method returns:
+The `exec()` method returns a `CommandResult` which is a discriminated union:
 
 ```typescript
+// Success
 {
-  ok: boolean;     // true if status 2xx
-  status: number;  // HTTP status code
-  body: unknown;   // Parsed response body
-  curl: string;    // Equivalent curl command
+  type: "success";
+  request: PreparedRequest;
+  response: {
+    status: number;
+    ok: boolean;
+    headers: Record<string, string>;
+    body: unknown;
+    rawBody: string;
+  };
+  timing: { startedAt: string; durationMs: number };
+}
+
+// Error
+{
+  type: "error";
+  message: string;
+  response?: ResponseData;  // If HTTP error
+}
+```
+
+Type guards are available for convenience:
+
+```typescript
+import { isSuccess, isError } from "specli";
+
+if (isSuccess(result)) {
+  console.log(result.response.body);
 }
 ```
 

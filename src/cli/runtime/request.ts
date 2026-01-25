@@ -153,7 +153,7 @@ export type BuildRequestInput = {
 
 export async function buildRequest(
 	input: BuildRequestInput,
-): Promise<{ request: Request; curl: string }> {
+): Promise<{ request: Request; curl: string; body?: string }> {
 	// Always use the "default" profile for simplicity
 	const defaultProfileName = "default";
 	const profilesFile = await readProfiles();
@@ -172,18 +172,14 @@ export async function buildRequest(
 		serverVars,
 	});
 
-	// Path params: action.positionals order matches templated params order.
+	// Path params: positionals order matches templated params order.
+	// Use rawPathArgs (original template variable names) for URL substitution.
 	const pathVars: Record<string, string> = {};
 	for (let i = 0; i < input.action.positionals.length; i++) {
-		const pos = input.action.positionals[i];
-		const raw = input.action.pathArgs[i];
+		const rawName = input.action.rawPathArgs[i];
 		const value = input.positionalValues[i];
-		if (typeof raw === "string" && typeof value === "string") {
-			pathVars[raw] = value;
-		}
-		// Use cli name too as fallback
-		if (pos?.name && typeof value === "string") {
-			pathVars[pos.name] = value;
+		if (typeof rawName === "string" && typeof value === "string") {
+			pathVars[rawName] = value;
 		}
 	}
 
@@ -364,7 +360,7 @@ export async function buildRequest(
 	});
 
 	const curl = buildCurl(req, body);
-	return { request: req, curl };
+	return { request: req, curl, body };
 }
 
 function buildCurl(req: Request, body: string | undefined): string {

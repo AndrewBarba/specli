@@ -20,6 +20,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
+import { toJSON } from "../cli/runtime/render.js";
 import { createClient, type SpecliOptions } from "../client/index.js";
 
 /**
@@ -74,17 +75,14 @@ export async function specliTool(options: SpecliOptions) {
 				if (!resource || !action)
 					return { error: "Missing resource or action" };
 
-				try {
-					const result = await client.exec(
-						resource,
-						action,
-						args ?? [],
-						flags ?? {},
-					);
-					return { status: result.status, ok: result.ok, body: result.body };
-				} catch (err) {
-					return { error: err instanceof Error ? err.message : String(err) };
-				}
+				const result = await client.exec(
+					resource,
+					action,
+					args ?? [],
+					flags ?? {},
+				);
+
+				return toJSON(result);
 			}
 
 			return { error: `Unknown command: ${command}` };

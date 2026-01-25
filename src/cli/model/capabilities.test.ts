@@ -49,6 +49,7 @@ describe("deriveCapabilities", () => {
 							key: "POST /contacts",
 							action: "create",
 							pathArgs: [],
+							rawPathArgs: [],
 							method: "POST",
 							path: "/contacts",
 							tags: [],

@@ -5,7 +5,10 @@ import type { NormalizedOperation } from "../core/types.js";
 export type PlannedOperation = NormalizedOperation & {
 	resource: string;
 	action: string;
+	/** CLI-friendly path arg names (kebab-case) */
 	pathArgs: string[];
+	/** Original path template variable names (for URL substitution) */
+	rawPathArgs: string[];
 	style: "rest" | "rpc";
 	canonicalAction: string;
 	aliasOf?: string;
@@ -275,6 +278,7 @@ export function planOperation(op: NormalizedOperation): PlannedOperation {
 	const style = inferStyle(op);
 	const resource = inferResource(op);
 	const action = style === "rpc" ? inferRpcAction(op) : inferRestAction(op);
+	const rawPathArgs = getPathArgs(op.path);
 
 	return {
 		...op,
@@ -283,7 +287,8 @@ export function planOperation(op: NormalizedOperation): PlannedOperation {
 		resource,
 		action,
 		canonicalAction: action,
-		pathArgs: getPathArgs(op.path).map((a) => kebabCase(a)),
+		pathArgs: rawPathArgs.map((a) => kebabCase(a)),
+		rawPathArgs,
 	};
 }
 
