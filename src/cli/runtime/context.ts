@@ -6,17 +6,20 @@ import { buildSchemaOutput } from "../model/schema.js";
 import { listAuthSchemes } from "../parse/auth-schemes.js";
 import { indexOperations } from "../parse/operations.js";
 import { listServers } from "../parse/servers.js";
-import { loadSpec } from "../spec/loader.js";
+import { loadSpec, type SpecFs } from "../spec/loader.js";
 
 export type BuildRuntimeContextOptions = {
 	spec?: string;
 	embeddedSpecText?: string;
+	/** Custom filesystem for reading spec files */
+	fs?: SpecFs;
 };
 
 export async function buildRuntimeContext(options: BuildRuntimeContextOptions) {
 	const loaded = await loadSpec({
 		spec: options.spec,
 		embeddedSpecText: options.embeddedSpecText,
+		fs: options.fs,
 	});
 
 	const operations = indexOperations(loaded.doc);

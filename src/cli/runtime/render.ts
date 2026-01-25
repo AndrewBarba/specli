@@ -236,13 +236,124 @@ function renderCurlText(result: CurlResult, _options: RenderOptions): string {
 }
 
 function renderDataText(result: DataResult, _options: RenderOptions): string {
-	const { data } = result;
+	const { data, kind } = result;
 
+	// Custom renderers for known data kinds
+	if (kind === "schema") {
+		return renderSchemaText(data as SchemaData);
+	}
+	if (kind === "whoami") {
+		return renderWhoamiText(data as WhoamiData);
+	}
+	if (kind === "login") {
+		return renderLoginText(data as LoginData);
+	}
+	if (kind === "logout") {
+		return renderLogoutText(data as LogoutData);
+	}
+
+	// Default: string passthrough or JSON
 	if (typeof data === "string") {
 		return data.endsWith("\n") ? data : `${data}\n`;
 	}
 
 	return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+// ----------------------------------------------------------------------------
+// Schema Data Rendering
+// ----------------------------------------------------------------------------
+
+type SchemaData = {
+	title?: string;
+	version: string;
+	specId: string;
+	servers: Array<{ url: string }>;
+	authSchemes: Array<{ key: string }>;
+	resources: Array<{ name: string; actionCount: number }>;
+	cliName?: string;
+};
+
+function renderSchemaText(data: SchemaData): string {
+	const lines: string[] = [];
+
+	lines.push(data.title ?? "(untitled)");
+	lines.push(`OpenAPI: ${data.version}`);
+	lines.push(`Servers: ${data.servers.length}`);
+	lines.push(`Auth Schemes: ${data.authSchemes.length}`);
+	lines.push(`Spec: ${data.specId}`);
+	lines.push("");
+	lines.push(`Resources: ${data.resources.length}`);
+	lines.push("");
+
+	const sorted = [...data.resources].sort((a, b) =>
+		a.name.localeCompare(b.name),
+	);
+	for (const r of sorted) {
+		lines.push(`- ${r.name} (${r.actionCount} actions)`);
+	}
+
+	lines.push("");
+	const name = data.cliName ?? "specli";
+	lines.push("Next:");
+	lines.push(`- ${name} <resource> --help`);
+	lines.push(`- ${name} <resource> <action> --help`);
+
+	return `${lines.join("\n")}\n`;
+}
+
+// ----------------------------------------------------------------------------
+// Whoami Data Rendering
+// ----------------------------------------------------------------------------
+
+type WhoamiData = {
+	authenticated: boolean;
+	authScheme?: string;
+	maskedToken?: string;
+};
+
+function renderWhoamiText(data: WhoamiData): string {
+	const lines: string[] = [];
+
+	if (data.authenticated) {
+		lines.push("authenticated: yes");
+		if (data.maskedToken) {
+			lines.push(`token: ${data.maskedToken}`);
+		}
+		if (data.authScheme) {
+			lines.push(`auth scheme: ${data.authScheme}`);
+		}
+	} else {
+		lines.push("authenticated: no");
+		lines.push("Run 'login <token>' to authenticate.");
+	}
+
+	return `${lines.join("\n")}\n`;
+}
+
+// ----------------------------------------------------------------------------
+// Login Data Rendering
+// ----------------------------------------------------------------------------
+
+type LoginData = {
+	ok: boolean;
+};
+
+function renderLoginText(data: LoginData): string {
+	return data.ok ? "ok: logged in\n" : "error: login failed\n";
+}
+
+// ----------------------------------------------------------------------------
+// Logout Data Rendering
+// ----------------------------------------------------------------------------
+
+type LogoutData = {
+	ok: boolean;
+	wasLoggedIn: boolean;
+};
+
+function renderLogoutText(data: LogoutData): string {
+	return data.wasLoggedIn ? "ok: logged out\n" : "ok: not logged in\n";
 }
 
 // ----------------------------------------------------------------------------
@@ -287,4 +398,33 @@ export function getOutputStream(result: CommandResult): "stdout" | "stderr" {
 		case "data":
 			return "stdout";
 	}
+}
+
+// ----------------------------------------------------------------------------
+// Write Result Helper
+// ----------------------------------------------------------------------------
+
+/**
+ * Render a CommandResult and write to the appropriate stream.
+ * Also sets process.exitCode based on the result.
+ *
+ * This is a convenience function for CLI commands that combines:
+ * - renderToString()
+ * - getOutputStream()
+ * - getExitCode()
+ */
+export function writeResult(
+	result: CommandResult,
+	options: RenderOptions = {},
+): void {
+	const output = renderToString(result, options);
+	const stream = getOutputStream(result);
+
+	if (stream === "stderr") {
+		process.stderr.write(output);
+	} else {
+		process.stdout.write(output);
+	}
+
+	process.exitCode = getExitCode(result);
 }

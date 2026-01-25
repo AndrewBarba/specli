@@ -156,6 +156,8 @@ export type CurlResult = ResultBase & {
  */
 export type DataResult = ResultBase & {
 	type: "data";
+	/** Optional kind identifier for custom text rendering */
+	kind?: "schema" | "whoami" | "login" | "logout";
 	/** The data payload */
 	data: unknown;
 };

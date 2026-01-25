@@ -30,6 +30,8 @@ import {
 	upsertProfile,
 	writeProfiles,
 } from "./runtime/profile/store.js";
+import { writeResult } from "./runtime/render.js";
+import type { CommandResult } from "./runtime/result.js";
 
 type MainOptions = {
 	embeddedSpecText?: string;
@@ -64,6 +66,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.option("--username <username>", "Basic auth username")
 		.option("--password <password>", "Basic auth password")
 		.option("--api-key <key>", "API key value")
+		.option("--json", "Output as JSON")
 		.showHelpAfterError();
 
 	// If user asks for help and we have no embedded spec and no --spec, show minimal help.
@@ -116,9 +119,13 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			}
 
 			if (!token) {
-				throw new Error(
-					"No token provided. Usage: login <token> or echo $TOKEN | login",
-				);
+				const result: CommandResult = {
+					type: "error",
+					message:
+						"No token provided. Usage: login <token> or echo $TOKEN | login",
+				};
+				writeResult(result, { format: globals.json ? "json" : "text" });
+				return;
 			}
 
 			// Ensure default profile exists
@@ -132,11 +139,12 @@ export async function main(argv: string[], options: MainOptions = {}) {
 
 			await setToken(ctx.loaded.id, defaultProfileName, token);
 
-			if (globals.json) {
-				process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
-				return;
-			}
-			process.stdout.write("ok: logged in\n");
+			const result: CommandResult = {
+				type: "data",
+				kind: "login",
+				data: { ok: true },
+			};
+			writeResult(result, { format: globals.json ? "json" : "text" });
 		});
 
 	program
@@ -147,13 +155,12 @@ export async function main(argv: string[], options: MainOptions = {}) {
 
 			const deleted = await deleteToken(ctx.loaded.id, defaultProfileName);
 
-			if (globals.json) {
-				process.stdout.write(`${JSON.stringify({ ok: deleted })}\n`);
-				return;
-			}
-			process.stdout.write(
-				deleted ? "ok: logged out\n" : "ok: not logged in\n",
-			);
+			const result: CommandResult = {
+				type: "data",
+				kind: "logout",
+				data: { ok: true, wasLoggedIn: deleted },
+			};
+			writeResult(result, { format: globals.json ? "json" : "text" });
 		});
 
 	program
@@ -166,27 +173,22 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			const hasToken = Boolean(token);
 
 			// Mask the token for display (show first 8 and last 4 chars)
-			let maskedToken: string | null = null;
+			let maskedToken: string | undefined;
 			if (token && token.length > 16) {
 				maskedToken = `${token.slice(0, 8)}...${token.slice(-4)}`;
 			} else if (token) {
 				maskedToken = `${token.slice(0, 4)}...`;
 			}
 
-			if (globals.json) {
-				process.stdout.write(
-					`${JSON.stringify({ authenticated: hasToken, token: maskedToken })}\n`,
-				);
-				return;
-			}
-
-			if (hasToken) {
-				process.stdout.write(`authenticated: yes\n`);
-				process.stdout.write(`token: ${maskedToken}\n`);
-			} else {
-				process.stdout.write(`authenticated: no\n`);
-				process.stdout.write(`Run 'login <token>' to authenticate.\n`);
-			}
+			const result: CommandResult = {
+				type: "data",
+				kind: "whoami",
+				data: {
+					authenticated: hasToken,
+					maskedToken,
+				},
+			};
+			writeResult(result, { format: globals.json ? "json" : "text" });
 		});
 
 	program
@@ -199,43 +201,39 @@ export async function main(argv: string[], options: MainOptions = {}) {
 		.action(async (_opts, command) => {
 			const flags = command.optsWithGlobals() as {
 				commands?: boolean;
+				json?: boolean;
 			};
 
-			process.stdout.write(`${ctx.schema.openapi.title ?? "(untitled)"}\n`);
-			process.stdout.write(`OpenAPI: ${ctx.schema.openapi.version}\n`);
-			process.stdout.write(`Servers: ${ctx.schema.servers.length}\n`);
-			process.stdout.write(`Auth Schemes: ${ctx.schema.authSchemes.length}\n`);
-			process.stdout.write(
-				`Spec: ${ctx.schema.spec.id} (${ctx.schema.spec.source})\n`,
-			);
+			const schemaData = {
+				title: ctx.schema.openapi.title,
+				version: ctx.schema.openapi.version,
+				specId: ctx.schema.spec.id,
+				specSource: ctx.schema.spec.source,
+				servers: ctx.servers,
+				authSchemes: ctx.authSchemes,
+				resources: ctx.commands.resources.map((r) => ({
+					name: r.resource,
+					actionCount: r.actions.length,
+				})),
+				cliName: program.name(),
+				// Include full commands list if requested
+				...(flags.commands && ctx.schema.planned?.length
+					? {
+							commands: ctx.schema.planned.map((op) => ({
+								resource: op.resource,
+								action: op.action,
+								pathArgs: op.pathArgs,
+							})),
+						}
+					: {}),
+			};
 
-			// Token-efficient default output: list resources (top-level commands)
-			// and push the user/agent toward --help for details.
-			process.stdout.write(`\nResources: ${ctx.commands.resources.length}\n\n`);
-			const resources = [...ctx.commands.resources].sort((a, b) =>
-				a.resource.localeCompare(b.resource),
-			);
-			for (const r of resources) {
-				process.stdout.write(`- ${r.resource} (${r.actions.length} actions)\n`);
-			}
-
-			if (flags.commands && ctx.schema.planned?.length) {
-				process.stdout.write(`\nCommands: ${ctx.schema.planned.length}\n\n`);
-				for (const op of ctx.schema.planned) {
-					const args = op.pathArgs.length
-						? ` ${op.pathArgs.map((a) => `<${a}>`).join(" ")}`
-						: "";
-					process.stdout.write(
-						`- ${program.name()} ${op.resource} ${op.action}${args}\n`,
-					);
-				}
-			}
-
-			process.stdout.write(
-				"\nNext:\n" +
-					`- ${program.name()} <resource> --help\n` +
-					`- ${program.name()} <resource> <action> --help\n`,
-			);
+			const result: CommandResult = {
+				type: "data",
+				kind: "schema",
+				data: schemaData,
+			};
+			writeResult(result, { format: flags.json ? "json" : "text" });
 		});
 
 	addGeneratedCommands(program, {

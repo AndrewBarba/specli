@@ -10,6 +10,16 @@ import { execute, prepare } from "../cli/runtime/execute.js";
 import type { RuntimeGlobals } from "../cli/runtime/request.js";
 import type { CommandResult } from "../cli/runtime/result.js";
 
+/**
+ * Custom filesystem interface for reading files.
+ * Allows overriding file reading behavior for environments
+ * where Node.js fs is not available or custom behavior is needed.
+ */
+export type SpecliFs = {
+	/** Read file contents as UTF-8 string */
+	readFile: (path: string) => Promise<string>;
+};
+
 export type SpecliOptions = {
 	/** The OpenAPI spec URL or file path */
 	spec: string;
@@ -27,6 +37,8 @@ export type SpecliOptions = {
 	authScheme?: string;
 	/** Custom fetch implementation */
 	fetch?: typeof fetch;
+	/** Custom filesystem implementation */
+	fs?: SpecliFs;
 };
 
 export type ResourceInfo = {
@@ -58,6 +70,25 @@ export type ActionDetail = {
 	}>;
 };
 
+export type SchemaInfo = {
+	title?: string;
+	version: string;
+	specId: string;
+	servers: ServerInfo[];
+	authSchemes: AuthScheme[];
+	resources: Array<{
+		name: string;
+		actionCount: number;
+	}>;
+};
+
+export type WhoamiInfo = {
+	authenticated: boolean;
+	authScheme?: string;
+	/** Masked token for display (if bearer/oauth token is set) */
+	maskedToken?: string;
+};
+
 export type SpecliClient = {
 	/** List all available resources and their actions */
 	list(): ResourceInfo[];
@@ -85,6 +116,18 @@ export type SpecliClient = {
 		args?: string[],
 		flags?: Record<string, unknown>,
 	): Promise<CommandResult>;
+
+	/**
+	 * Get schema information about the loaded spec.
+	 * Useful for introspection and discovery.
+	 */
+	schema(): SchemaInfo;
+
+	/**
+	 * Get current authentication status.
+	 * Reports what auth credentials are configured on this client.
+	 */
+	whoami(): WhoamiInfo;
 
 	/** Get server information */
 	servers: ServerInfo[];
@@ -121,9 +164,10 @@ export async function createClient(
 		basicAuth,
 		authScheme,
 		fetch: customFetch,
+		fs: customFs,
 	} = options;
 
-	const ctx = await buildRuntimeContext({ spec });
+	const ctx = await buildRuntimeContext({ spec, fs: customFs });
 
 	const globals: RuntimeGlobals = {
 		server,
@@ -240,6 +284,39 @@ export async function createClient(
 			result.action = action;
 
 			return result;
+		},
+
+		schema(): SchemaInfo {
+			return {
+				title: ctx.schema.openapi.title,
+				version: ctx.schema.openapi.version,
+				specId: ctx.loaded.id,
+				servers: ctx.servers,
+				authSchemes: ctx.authSchemes,
+				resources: ctx.commands.resources.map((r) => ({
+					name: r.resource,
+					actionCount: r.actions.length,
+				})),
+			};
+		},
+
+		whoami(): WhoamiInfo {
+			const token = bearerToken;
+			const hasAuth = Boolean(token || apiKey || basicAuth);
+
+			// Mask the token for display (show first 8 and last 4 chars)
+			let maskedToken: string | undefined;
+			if (token && token.length > 16) {
+				maskedToken = `${token.slice(0, 8)}...${token.slice(-4)}`;
+			} else if (token) {
+				maskedToken = `${token.slice(0, 4)}...`;
+			}
+
+			return {
+				authenticated: hasAuth,
+				authScheme,
+				maskedToken,
+			};
 		},
 
 		servers: ctx.servers,

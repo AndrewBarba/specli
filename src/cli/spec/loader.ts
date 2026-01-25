@@ -3,12 +3,22 @@ import SwaggerParser from "@apidevtools/swagger-parser";
 import { sha256Hex } from "../core/crypto.js";
 import { stableStringify } from "../core/stable-json.js";
 import type { LoadedSpec, OpenApiDoc, SpecSource } from "../core/types.js";
-import { parseYamlContent } from "../runtime/compat.js";
+import { parseYamlContent, readFileText } from "../runtime/compat.js";
 import { getSpecId } from "./id.js";
+
+/**
+ * Custom filesystem interface for reading files.
+ */
+export type SpecFs = {
+	/** Read file contents as UTF-8 string */
+	readFile: (path: string) => Promise<string>;
+};
 
 export type LoadSpecOptions = {
 	spec?: string;
 	embeddedSpecText?: string;
+	/** Custom filesystem for reading spec files */
+	fs?: SpecFs;
 };
 
 function isProbablyUrl(input: string): boolean {
@@ -25,7 +35,7 @@ function parseSpecText(text: string): unknown {
 }
 
 export async function loadSpec(options: LoadSpecOptions): Promise<LoadedSpec> {
-	const { spec, embeddedSpecText } = options;
+	const { spec, embeddedSpecText, fs } = options;
 
 	let source: SpecSource;
 	let inputForParser: unknown;
@@ -34,8 +44,22 @@ export async function loadSpec(options: LoadSpecOptions): Promise<LoadedSpec> {
 		source = "embedded";
 		inputForParser = parseSpecText(embeddedSpecText);
 	} else if (spec) {
-		source = isProbablyUrl(spec) ? "url" : "file";
-		inputForParser = spec;
+		const isUrl = isProbablyUrl(spec);
+		source = isUrl ? "url" : "file";
+
+		if (!isUrl && fs) {
+			// Use custom filesystem to read file, then parse
+			const content = await fs.readFile(spec);
+			inputForParser = parseSpecText(content);
+		} else if (!isUrl) {
+			// Use default filesystem to read file, then parse
+			// This ensures consistent behavior between custom and default fs
+			const content = await readFileText(spec);
+			inputForParser = parseSpecText(content);
+		} else {
+			// URL - let SwaggerParser handle fetching
+			inputForParser = spec;
+		}
 	} else {
 		throw new Error(
 			"Missing spec. Provide --spec <url|path> or build with an embedded spec.",
