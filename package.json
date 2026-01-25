@@ -4,7 +4,7 @@
 	"description": "Run any OpenAPI spec as an Agent optimized executable",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/AndrewBarba/specli.git"
+		"url": "https://github.com/vercel-labs/specli.git"
 	},
 	"type": "module",
 	"module": "./dist/index.js",
