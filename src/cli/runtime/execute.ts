@@ -29,6 +29,8 @@ export type ExecuteInput = {
 	bodyFlagDefs?: BodyFlagDef[];
 	/** Resource name for error messages (e.g. "plans") */
 	resourceName?: string;
+	/** Custom fetch implementation */
+	fetch?: typeof fetch;
 };
 
 /**
@@ -123,7 +125,8 @@ export async function execute(
 		}
 
 		// Execute the request
-		const res = await fetch(request);
+		const fetchFn = input.fetch ?? fetch;
+		const res = await fetchFn(request);
 		const durationMs = Date.now() - startTime;
 
 		const contentType = res.headers.get("content-type") ?? "";

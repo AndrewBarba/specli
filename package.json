@@ -1,6 +1,6 @@
 {
 	"name": "specli",
-	"version": "0.0.36",
+	"version": "0.0.37",
 	"description": "Run any OpenAPI spec as an Agent optimized executable",
 	"repository": {
 		"type": "git",

@@ -25,6 +25,8 @@ export type SpecliOptions = {
 	basicAuth?: { username: string; password: string };
 	/** Auth scheme to use (if multiple are available) */
 	authScheme?: string;
+	/** Custom fetch implementation */
+	fetch?: typeof fetch;
 };
 
 export type ResourceInfo = {
@@ -118,6 +120,7 @@ export async function createClient(
 		apiKey,
 		basicAuth,
 		authScheme,
+		fetch: customFetch,
 	} = options;
 
 	const ctx = await buildRuntimeContext({ spec });
@@ -196,6 +199,7 @@ export async function createClient(
 				globals,
 				servers: ctx.servers,
 				authSchemes: ctx.authSchemes,
+				fetch: customFetch,
 			});
 
 			// Add context to the result
