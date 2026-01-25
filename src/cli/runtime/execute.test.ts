@@ -17,7 +17,7 @@ function makeAction(partial?: Partial<CommandAction>): CommandAction {
 		path: "/users/{id}",
 		tags: [],
 		style: "rest",
-		positionals: [{ name: "id", in: "path", required: true }],
+		positionals: [{ name: "id", required: true, type: "string" }],
 		flags: [],
 		params: [],
 		auth: { alternatives: [] },
@@ -33,15 +33,17 @@ describe("execute", () => {
 
 		try {
 			const action = makeAction();
-			let capturedRequest: Request | null = null;
+			let capturedUrl = "";
+			let capturedMethod = "";
 
-			const customFetch = async (input: Request): Promise<Response> => {
-				capturedRequest = input;
+			const customFetch = (async (input: Request): Promise<Response> => {
+				capturedUrl = input.url;
+				capturedMethod = input.method;
 				return new Response(JSON.stringify({ id: "123", name: "Test User" }), {
 					status: 200,
 					headers: { "Content-Type": "application/json" },
 				});
-			};
+			}) as typeof fetch;
 
 			const result = await execute({
 				specId: "spec",
@@ -57,9 +59,8 @@ describe("execute", () => {
 			});
 
 			expect(result.type).toBe("success");
-			expect(capturedRequest).not.toBeNull();
-			expect(capturedRequest?.url).toBe("https://api.example.com/users/123");
-			expect(capturedRequest?.method).toBe("GET");
+			expect(capturedUrl).toBe("https://api.example.com/users/123");
+			expect(capturedMethod).toBe("GET");
 
 			if (result.type === "success") {
 				expect(result.response.status).toBe(200);
@@ -79,15 +80,15 @@ describe("execute", () => {
 			const action = makeAction({
 				auth: { alternatives: [[{ key: "bearerAuth", scopes: [] }]] },
 			});
-			let capturedHeaders: Headers | null = null;
+			let capturedAuthHeader = "";
 
-			const customFetch = async (input: Request): Promise<Response> => {
-				capturedHeaders = input.headers;
+			const customFetch = (async (input: Request): Promise<Response> => {
+				capturedAuthHeader = input.headers.get("Authorization") ?? "";
 				return new Response(JSON.stringify({ ok: true }), {
 					status: 200,
 					headers: { "Content-Type": "application/json" },
 				});
-			};
+			}) as typeof fetch;
 
 			await execute({
 				specId: "spec",
@@ -104,10 +105,7 @@ describe("execute", () => {
 				fetch: customFetch,
 			});
 
-			expect(capturedHeaders).not.toBeNull();
-			expect(capturedHeaders?.get("Authorization")).toBe(
-				"Bearer test-token-123",
-			);
+			expect(capturedAuthHeader).toBe("Bearer test-token-123");
 		} finally {
 			process.env.HOME = prevHome;
 		}
@@ -121,7 +119,7 @@ describe("execute", () => {
 		try {
 			const action = makeAction();
 
-			const customFetch = async (_input: Request): Promise<Response> => {
+			const customFetch = (async (_input: Request): Promise<Response> => {
 				return new Response(
 					JSON.stringify({ error: "Not Found", message: "User not found" }),
 					{
@@ -129,7 +127,7 @@ describe("execute", () => {
 						headers: { "Content-Type": "application/json" },
 					},
 				);
-			};
+			}) as typeof fetch;
 
 			const result = await execute({
 				specId: "spec",
@@ -166,9 +164,9 @@ describe("execute", () => {
 		try {
 			const action = makeAction();
 
-			const customFetch = async (_input: Request): Promise<Response> => {
+			const customFetch = (async (_input: Request): Promise<Response> => {
 				throw new Error("Network error: connection refused");
-			};
+			}) as typeof fetch;
 
 			const result = await execute({
 				specId: "spec",
