@@ -200,6 +200,32 @@ export function addGeneratedCommands(
 				for (const def of bodyFlagDefs) {
 					if (def.type === "boolean") {
 						cmd.option(def.flag, def.description);
+					} else if (def.type === "array") {
+						cmd.option(
+							`${def.flag} <value>`,
+							def.description,
+							(value: string, prev: unknown[] | undefined) => {
+								const next = [...(prev ?? [])];
+								const trimmed = value.trim();
+								if (trimmed.startsWith("[")) {
+									try {
+										const parsed = JSON.parse(trimmed);
+										if (Array.isArray(parsed)) next.push(...parsed);
+										else next.push(value);
+									} catch {
+										next.push(value);
+									}
+								} else {
+									next.push(
+										...trimmed
+											.split(",")
+											.map((s) => s.trim())
+											.filter(Boolean),
+									);
+								}
+								return next;
+							},
+						);
 					} else {
 						cmd.option(`${def.flag} <value>`, def.description);
 					}
