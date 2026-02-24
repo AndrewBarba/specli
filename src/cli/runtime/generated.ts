@@ -115,6 +115,7 @@ export type GeneratedCliContext = {
 	commands: CommandModel;
 	specId: string;
 	embeddedDefaults?: EmbeddedDefaults;
+	fetch?: typeof fetch;
 };
 
 export function addGeneratedCommands(
@@ -261,6 +262,7 @@ export function addGeneratedCommands(
 					embeddedDefaults: context.embeddedDefaults,
 					bodyFlagDefs,
 					resourceName: resource.resource,
+					fetch: context.fetch,
 				});
 			});
 		}

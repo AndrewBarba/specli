@@ -40,6 +40,7 @@ type MainOptions = {
 	serverVars?: string[];
 	auth?: string;
 	version?: string;
+	fetch?: typeof fetch;
 };
 
 export async function main(argv: string[], options: MainOptions = {}) {
@@ -246,6 +247,7 @@ export async function main(argv: string[], options: MainOptions = {}) {
 			serverVars: options.serverVars,
 			auth: options.auth,
 		},
+		fetch: options.fetch,
 	});
 
 	program.configureHelp({
