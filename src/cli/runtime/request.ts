@@ -3,6 +3,7 @@ import type { AuthScheme } from "../parse/auth-schemes.js";
 import type { ServerInfo } from "../parse/servers.js";
 
 import { resolveAuthScheme } from "./auth/resolve.js";
+import { loadBody } from "./body.js";
 import { getToken } from "./profile/secrets.js";
 import { getProfile, readProfiles } from "./profile/store.js";
 import { resolveServerUrl } from "./server-url.js";
@@ -259,60 +260,74 @@ export async function buildRequest(
 
 	let body: string | undefined;
 	if (input.action.requestBody) {
-		// Check if any body flags were provided using the flag definitions
-		const bodyFlagDefs = input.bodyFlagDefs ?? [];
-		const hasBodyFlags = bodyFlagDefs.some((def) => {
-			// Commander keeps dots in option names: --address.street -> "address.street"
-			const dotKey = def.path.join(".");
-			return input.flagValues[dotKey] !== undefined;
-		});
-
 		const contentType = input.action.requestBody.preferredContentType;
 		if (contentType) headers.set("Content-Type", contentType);
 
-		const schema = input.action.requestBodySchema;
+		const rawData = input.flagValues.data as string | undefined;
+		const filePath = input.flagValues.file as string | undefined;
 
-		// Check if there are any required fields in the body
-		const requiredFields = bodyFlagDefs.filter((d) => d.required);
+		if (rawData && filePath) {
+			throw new Error("Cannot use both --data and --file");
+		}
 
-		if (!hasBodyFlags) {
-			if (requiredFields.length > 0) {
-				// Error: user must provide required fields
-				const flagList = requiredFields.map((d) => `--${d.path.join(".")}`);
-				throw new Error(`Required: ${flagList.join(", ")}`);
-			}
-			// No required fields - send empty body if body is required, otherwise skip
-			if (input.action.requestBody.required) {
-				body = "{}";
+		if (rawData || filePath) {
+			// --data or --file: use raw body input directly
+			const loaded = await loadBody(
+				rawData
+					? { kind: "data", data: rawData }
+					: { kind: "file", path: filePath as string },
+			);
+			if (loaded) {
+				body = loaded.raw;
 			}
 		} else {
-			if (!contentType?.includes("json")) {
-				throw new Error(
-					"Body field flags are only supported for JSON request bodies.",
-				);
-			}
+			// Fall back to body field flags (--name, --address.city, etc.)
+			const bodyFlagDefs = input.bodyFlagDefs ?? [];
+			const hasBodyFlags = bodyFlagDefs.some((def) => {
+				const dotKey = def.path.join(".");
+				return input.flagValues[dotKey] !== undefined;
+			});
 
-			// Check for missing required fields
-			const { findMissingRequired, parseDotNotationFlags } = await import(
-				"./body-flags.js"
-			);
-			const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
-			if (missing.length > 0) {
-				const missingFlags = missing.map((m) => `--${m}`).join(", ");
-				throw new Error(`Missing required fields: ${missingFlags}`);
-			}
+			const schema = input.action.requestBodySchema;
+			const requiredFields = bodyFlagDefs.filter((d) => d.required);
 
-			// Build nested object from dot-notation flags
-			const built = parseDotNotationFlags(input.flagValues, bodyFlagDefs);
-
-			if (schema) {
-				const validate = ajv.compile(schema);
-				if (!validate(built)) {
-					throw new Error(formatAjvErrors(validate.errors));
+			if (!hasBodyFlags) {
+				if (requiredFields.length > 0) {
+					const flagList = requiredFields.map(
+						(d) => `--${d.path.join(".")}`,
+					);
+					throw new Error(`Required: ${flagList.join(", ")}`);
 				}
-			}
+				if (input.action.requestBody.required) {
+					body = "{}";
+				}
+			} else {
+				if (!contentType?.includes("json")) {
+					throw new Error(
+						"Body field flags are only supported for JSON request bodies.",
+					);
+				}
 
-			body = JSON.stringify(built);
+				const { findMissingRequired, parseDotNotationFlags } = await import(
+					"./body-flags.js"
+				);
+				const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
+				if (missing.length > 0) {
+					const missingFlags = missing.map((m) => `--${m}`).join(", ");
+					throw new Error(`Missing required fields: ${missingFlags}`);
+				}
+
+				const built = parseDotNotationFlags(input.flagValues, bodyFlagDefs);
+
+				if (schema) {
+					const validate = ajv.compile(schema);
+					if (!validate(built)) {
+						throw new Error(formatAjvErrors(validate.errors));
+					}
+				}
+
+				body = JSON.stringify(built);
+			}
 		}
 	}
 

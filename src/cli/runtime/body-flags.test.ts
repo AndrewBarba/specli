@@ -146,6 +146,114 @@ describe("generateBodyFlags", () => {
 
 		expect(flags[0]?.description).toBe("User email address");
 	});
+
+	test("merges top-level allOf into flat properties", () => {
+		const flags = generateBodyFlags(
+			{
+				allOf: [
+					{
+						type: "object",
+						properties: {
+							name: { type: "string", description: "Name" },
+						},
+						required: ["name"],
+					},
+					{
+						type: "object",
+						properties: {
+							email: { type: "string", description: "Email" },
+						},
+					},
+				],
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.find((f) => f.flag === "--name")).toEqual({
+			flag: "--name",
+			path: ["name"],
+			type: "string",
+			description: "Name",
+			required: true,
+		});
+		expect(flags.find((f) => f.flag === "--email")).toEqual({
+			flag: "--email",
+			path: ["email"],
+			type: "string",
+			description: "Email",
+			required: false,
+		});
+	});
+
+	test("merges nested allOf in property schemas", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					transaction: {
+						allOf: [
+							{ type: "object" },
+							{
+								type: "object",
+								properties: {
+									payee_name: {
+										type: "string",
+										description: "The payee name",
+									},
+									amount: {
+										type: "integer",
+										description: "Amount in milliunits",
+									},
+								},
+							},
+						],
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.find((f) => f.flag === "--transaction.payee_name")).toEqual({
+			flag: "--transaction.payee_name",
+			path: ["transaction", "payee_name"],
+			type: "string",
+			description: "The payee name",
+			required: false,
+		});
+		expect(flags.find((f) => f.flag === "--transaction.amount")).toEqual({
+			flag: "--transaction.amount",
+			path: ["transaction", "amount"],
+			type: "integer",
+			description: "Amount in milliunits",
+			required: false,
+		});
+	});
+
+	test("handles allOf with properties alongside", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					id: { type: "string" },
+				},
+				allOf: [
+					{
+						type: "object",
+						properties: {
+							name: { type: "string" },
+						},
+					},
+				],
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.find((f) => f.flag === "--id")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--name")).toBeDefined();
+	});
 });
 
 describe("parseDotNotationFlags", () => {
