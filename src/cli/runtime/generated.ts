@@ -21,6 +21,7 @@ function formatCustomHelp(
 	action: CommandAction,
 	operationFlags: CommandFlag[],
 	bodyFlagDefs: BodyFlagDef[],
+	hasRequestBody: boolean,
 ): string {
 	const lines: string[] = [];
 	const cmdName = cmd.name();
@@ -92,6 +93,16 @@ function formatCustomHelp(
 	if (optionalOpts.length > 0) {
 		lines.push("Options:");
 		lines.push(...optionalOpts);
+		lines.push("");
+	}
+
+	// Body input options
+	if (hasRequestBody) {
+		lines.push("Body:");
+		lines.push(
+			"  --data <data>\n      Inline request body (JSON or YAML)",
+		);
+		lines.push("  --file <path>\n      Read request body from file");
 		lines.push("");
 	}
 
@@ -177,9 +188,14 @@ export function addGeneratedCommands(
 				else cmd.option(key, desc, parser);
 			}
 
-			// Collect reserved flags: operation params + --curl
+			// Collect reserved flags: operation params + --curl + --data/--file
 			const operationFlagSet = new Set(action.flags.map((f) => f.flag));
-			const reservedFlags = new Set([...operationFlagSet, "--curl"]);
+			const reservedFlags = new Set([
+				...operationFlagSet,
+				"--curl",
+				"--data",
+				"--file",
+			]);
 
 			// Only --curl is a built-in flag (for debugging)
 			if (!operationFlagSet.has("--curl")) {
@@ -190,6 +206,10 @@ export function addGeneratedCommands(
 			let bodyFlagDefs: BodyFlagDef[] = [];
 
 			if (action.requestBody) {
+				// Register --data and --file for raw body input
+				cmd.option("--data <data>", "Inline request body (JSON or YAML)");
+				cmd.option("--file <path>", "Read request body from file");
+
 				// Generate body flags from schema (recursive with dot notation)
 				// Pass reserved flags to avoid conflicts with operation params and --curl
 				bodyFlagDefs = generateBodyFlags(
@@ -209,7 +229,13 @@ export function addGeneratedCommands(
 			// Custom help output for better agent/human readability
 			cmd.configureHelp({
 				formatHelp: () =>
-					formatCustomHelp(cmd, action, action.flags, bodyFlagDefs),
+					formatCustomHelp(
+						cmd,
+						action,
+						action.flags,
+						bodyFlagDefs,
+						Boolean(action.requestBody),
+					),
 			});
 
 			// Commander passes positional args and then the Command instance as last arg.

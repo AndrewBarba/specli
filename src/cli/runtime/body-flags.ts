@@ -6,12 +6,24 @@
  */
 
 type JsonSchema = {
-	type?: string;
+	type?: string | string[];
 	properties?: Record<string, JsonSchema>;
 	items?: JsonSchema;
 	required?: string[];
 	description?: string;
+	allOf?: JsonSchema[];
 };
+
+/**
+ * Resolve OpenAPI 3.1 nullable type arrays (e.g. ["string", "null"])
+ * to their non-null scalar type. Returns the raw type for simple strings.
+ */
+function resolveType(type: string | string[] | undefined): string | undefined {
+	if (Array.isArray(type)) {
+		return type.find((t) => t !== "null");
+	}
+	return type;
+}
 
 export type BodyFlagDef = {
 	flag: string; // e.g. "--name" or "--address.street"
@@ -22,21 +34,60 @@ export type BodyFlagDef = {
 };
 
 /**
+ * Merge allOf compositions into a single schema with combined properties.
+ * Recursively handles nested allOf.
+ */
+function flattenAllOf(schema: JsonSchema): JsonSchema {
+	if (!schema.allOf || !Array.isArray(schema.allOf)) return schema;
+
+	const merged: JsonSchema = {
+		type: schema.type ?? "object",
+		properties: {},
+		required: [],
+	};
+
+	for (const sub of schema.allOf) {
+		const flat = flattenAllOf(sub);
+		if (flat.properties) {
+			merged.properties = { ...merged.properties, ...flat.properties };
+		}
+		if (flat.required) {
+			merged.required = [...(merged.required ?? []), ...flat.required];
+		}
+	}
+
+	// Preserve top-level fields from the original schema
+	if (schema.properties) {
+		merged.properties = { ...merged.properties, ...schema.properties };
+	}
+	if (schema.required) {
+		merged.required = [...(merged.required ?? []), ...schema.required];
+	}
+	if (schema.description) merged.description = schema.description;
+
+	return merged;
+}
+
+/**
  * Generate flag definitions from a JSON schema.
  * Recursively handles nested objects using dot notation.
+ * Merges allOf compositions before generating flags.
  */
 export function generateBodyFlags(
 	schema: JsonSchema | undefined,
 	reservedFlags: Set<string>,
 ): BodyFlagDef[] {
-	if (!schema || schema.type !== "object" || !schema.properties) {
+	if (!schema) return [];
+
+	const resolved = flattenAllOf(schema);
+	if (resolveType(resolved.type) !== "object" || !resolved.properties) {
 		return [];
 	}
 
 	const flags: BodyFlagDef[] = [];
-	const requiredSet = new Set(schema.required ?? []);
+	const requiredSet = new Set(resolved.required ?? []);
 
-	collectFlags(schema.properties, [], requiredSet, flags, reservedFlags);
+	collectFlags(resolved.properties, [], requiredSet, flags, reservedFlags);
 
 	return flags;
 }
@@ -58,13 +109,14 @@ function collectFlags(
 		// Skip if this flag would conflict with an operation parameter
 		if (reservedFlags.has(flagName)) continue;
 
-		const t = propSchema.type;
+		const resolved = flattenAllOf(propSchema);
+		const t = resolveType(resolved.type);
 
-		if (t === "object" && propSchema.properties) {
+		if (t === "object" && resolved.properties) {
 			// Recurse into nested object
-			const nestedRequired = new Set(propSchema.required ?? []);
+			const nestedRequired = new Set(resolved.required ?? []);
 			collectFlags(
-				propSchema.properties,
+				resolved.properties,
 				path,
 				nestedRequired,
 				out,
@@ -84,7 +136,7 @@ function collectFlags(
 				flag: flagName,
 				path,
 				type: t,
-				description: propSchema.description ?? `Body field '${path.join(".")}'`,
+				description: resolved.description ?? `Body field '${path.join(".")}'`,
 				required: isRequired,
 			});
 		}

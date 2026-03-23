@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import type { CommandAction } from "../model/command-model.js";
@@ -219,6 +221,161 @@ describe("buildRequest (requestBody)", () => {
 					city: "NYC",
 				},
 			});
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+});
+
+describe("buildRequest (--data / --file)", () => {
+	test("uses --data as raw body", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action = makeAction({
+				requestBodySchema: undefined, // no schema — raw body
+			});
+
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { data: '{"transaction":{"payee_name":"Test"}}' },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+			});
+
+			expect(await request.clone().text()).toBe(
+				'{"transaction":{"payee_name":"Test"}}',
+			);
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("--data takes priority over body field flags", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action = makeAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { data: '{"x":1}', name: "ignored" },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+				bodyFlagDefs,
+			});
+
+			expect(await request.clone().text()).toBe('{"x":1}');
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("errors when both --data and --file are provided", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action = makeAction();
+
+			await expect(() =>
+				buildRequest({
+					specId: "spec",
+					action,
+					positionalValues: [],
+					flagValues: { data: '{"x":1}', file: "/tmp/body.json" },
+					globals: {},
+					servers: [
+						{
+							url: "https://api.example.com",
+							variables: [],
+							variableNames: [],
+						},
+					],
+					authSchemes: [],
+				}),
+			).toThrow("Cannot use both --data and --file");
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("--file reads body from file", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const dir = `${tmpdir()}/specli-file-test-${crypto.randomUUID()}`;
+			mkdirSync(dir, { recursive: true });
+			const filePath = join(dir, "body.json");
+			writeFileSync(filePath, '{"name":"from-file"}');
+
+			const action = makeAction({
+				requestBodySchema: undefined,
+			});
+
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { file: filePath },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+			});
+
+			expect(await request.clone().text()).toBe('{"name":"from-file"}');
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("--data body appears in curl output", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const action = makeAction({
+				requestBodySchema: undefined,
+			});
+
+			const { curl } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { data: '{"name":"Ada"}' },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+			});
+
+			expect(curl).toContain("--data");
+			expect(curl).toContain('{"name":"Ada"}');
 		} finally {
 			process.env.HOME = prevHome;
 		}

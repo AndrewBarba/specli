@@ -146,6 +146,251 @@ describe("generateBodyFlags", () => {
 
 		expect(flags[0]?.description).toBe("User email address");
 	});
+
+	test("merges top-level allOf into flat properties", () => {
+		const flags = generateBodyFlags(
+			{
+				allOf: [
+					{
+						type: "object",
+						properties: {
+							name: { type: "string", description: "Name" },
+						},
+						required: ["name"],
+					},
+					{
+						type: "object",
+						properties: {
+							email: { type: "string", description: "Email" },
+						},
+					},
+				],
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.find((f) => f.flag === "--name")).toEqual({
+			flag: "--name",
+			path: ["name"],
+			type: "string",
+			description: "Name",
+			required: true,
+		});
+		expect(flags.find((f) => f.flag === "--email")).toEqual({
+			flag: "--email",
+			path: ["email"],
+			type: "string",
+			description: "Email",
+			required: false,
+		});
+	});
+
+	test("merges nested allOf in property schemas", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					transaction: {
+						allOf: [
+							{ type: "object" },
+							{
+								type: "object",
+								properties: {
+									payee_name: {
+										type: "string",
+										description: "The payee name",
+									},
+									amount: {
+										type: "integer",
+										description: "Amount in milliunits",
+									},
+								},
+							},
+						],
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.find((f) => f.flag === "--transaction.payee_name")).toEqual({
+			flag: "--transaction.payee_name",
+			path: ["transaction", "payee_name"],
+			type: "string",
+			description: "The payee name",
+			required: false,
+		});
+		expect(flags.find((f) => f.flag === "--transaction.amount")).toEqual({
+			flag: "--transaction.amount",
+			path: ["transaction", "amount"],
+			type: "integer",
+			description: "Amount in milliunits",
+			required: false,
+		});
+	});
+
+	test("handles OpenAPI 3.1 nullable types (type arrays)", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					name: { type: "string", description: "Name" },
+					payee_name: {
+						type: ["string", "null"],
+						description: "Payee name",
+					},
+					memo: { type: ["string", "null"], description: "Memo" },
+					amount: { type: "integer", description: "Amount" },
+					category_id: {
+						type: ["string", "null"],
+						description: "Category",
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(5);
+		expect(flags.find((f) => f.flag === "--name")?.type).toBe("string");
+		expect(flags.find((f) => f.flag === "--payee_name")?.type).toBe("string");
+		expect(flags.find((f) => f.flag === "--memo")?.type).toBe("string");
+		expect(flags.find((f) => f.flag === "--amount")?.type).toBe("integer");
+		expect(flags.find((f) => f.flag === "--category_id")?.type).toBe("string");
+	});
+
+	test("handles nullable types in nested allOf schemas", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					transaction: {
+						allOf: [
+							{ type: "object" },
+							{
+								type: "object",
+								properties: {
+									account_id: { type: "string" },
+									payee_name: {
+										type: ["string", "null"],
+										description: "The payee name",
+									},
+									memo: { type: ["string", "null"] },
+								},
+							},
+						],
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(3);
+		expect(
+			flags.find((f) => f.flag === "--transaction.account_id"),
+		).toBeDefined();
+		expect(
+			flags.find((f) => f.flag === "--transaction.payee_name"),
+		).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.memo")).toBeDefined();
+	});
+
+	test("reproduces YNAB PutTransactionWrapper schema (allOf + nullable types)", () => {
+		// This matches the dereferenced shape of YNAB's PUT /budgets/{id}/transactions/{id}
+		// request body: PutTransactionWrapper -> transaction: ExistingTransaction (allOf)
+		// -> SaveTransactionWithOptionalFields (mixed scalar and nullable types)
+		const schema = {
+			type: "object",
+			required: ["transaction"],
+			properties: {
+				transaction: {
+					allOf: [
+						{ type: "object" },
+						{
+							type: "object",
+							properties: {
+								account_id: { type: "string" },
+								date: { type: "string", description: "Transaction date" },
+								amount: {
+									type: "integer",
+									description: "Amount in milliunits",
+								},
+								payee_id: { type: ["string", "null"], description: "Payee ID" },
+								payee_name: {
+									type: ["string", "null"],
+									description: "Payee name",
+								},
+								category_id: {
+									type: ["string", "null"],
+									description: "Category ID",
+								},
+								memo: { type: ["string", "null"], description: "Memo" },
+								cleared: { type: "string", description: "Cleared status" },
+								approved: { type: "boolean", description: "Approved" },
+								flag_color: {
+									type: ["string", "null"],
+									description: "Flag color",
+								},
+								subtransactions: { type: "array" },
+							},
+						},
+					],
+				},
+			},
+		};
+
+		const flags = generateBodyFlags(schema, new Set());
+
+		// Should generate flags for all scalar/nullable fields (not subtransactions array)
+		expect(flags).toHaveLength(10);
+
+		// Scalar types
+		expect(flags.find((f) => f.flag === "--transaction.account_id")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.date")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.amount")?.type).toBe(
+			"integer",
+		);
+		expect(flags.find((f) => f.flag === "--transaction.cleared")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.approved")?.type).toBe(
+			"boolean",
+		);
+
+		// Nullable types — these were previously missing
+		expect(flags.find((f) => f.flag === "--transaction.payee_id")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.payee_name")).toBeDefined();
+		expect(
+			flags.find((f) => f.flag === "--transaction.category_id"),
+		).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.memo")).toBeDefined();
+		expect(
+			flags.find((f) => f.flag === "--transaction.flag_color"),
+		).toBeDefined();
+	});
+
+	test("handles allOf with properties alongside", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					id: { type: "string" },
+				},
+				allOf: [
+					{
+						type: "object",
+						properties: {
+							name: { type: "string" },
+						},
+					},
+				],
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(2);
+		expect(flags.find((f) => f.flag === "--id")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--name")).toBeDefined();
+	});
 });
 
 describe("parseDotNotationFlags", () => {
