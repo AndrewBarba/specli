@@ -296,6 +296,78 @@ describe("generateBodyFlags", () => {
 		expect(flags.find((f) => f.flag === "--transaction.memo")).toBeDefined();
 	});
 
+	test("reproduces YNAB PutTransactionWrapper schema (allOf + nullable types)", () => {
+		// This matches the dereferenced shape of YNAB's PUT /budgets/{id}/transactions/{id}
+		// request body: PutTransactionWrapper -> transaction: ExistingTransaction (allOf)
+		// -> SaveTransactionWithOptionalFields (mixed scalar and nullable types)
+		const schema = {
+			type: "object",
+			required: ["transaction"],
+			properties: {
+				transaction: {
+					allOf: [
+						{ type: "object" },
+						{
+							type: "object",
+							properties: {
+								account_id: { type: "string" },
+								date: { type: "string", description: "Transaction date" },
+								amount: {
+									type: "integer",
+									description: "Amount in milliunits",
+								},
+								payee_id: { type: ["string", "null"], description: "Payee ID" },
+								payee_name: {
+									type: ["string", "null"],
+									description: "Payee name",
+								},
+								category_id: {
+									type: ["string", "null"],
+									description: "Category ID",
+								},
+								memo: { type: ["string", "null"], description: "Memo" },
+								cleared: { type: "string", description: "Cleared status" },
+								approved: { type: "boolean", description: "Approved" },
+								flag_color: {
+									type: ["string", "null"],
+									description: "Flag color",
+								},
+								subtransactions: { type: "array" },
+							},
+						},
+					],
+				},
+			},
+		};
+
+		const flags = generateBodyFlags(schema, new Set());
+
+		// Should generate flags for all scalar/nullable fields (not subtransactions array)
+		expect(flags).toHaveLength(10);
+
+		// Scalar types
+		expect(flags.find((f) => f.flag === "--transaction.account_id")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.date")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.amount")?.type).toBe(
+			"integer",
+		);
+		expect(flags.find((f) => f.flag === "--transaction.cleared")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.approved")?.type).toBe(
+			"boolean",
+		);
+
+		// Nullable types — these were previously missing
+		expect(flags.find((f) => f.flag === "--transaction.payee_id")).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.payee_name")).toBeDefined();
+		expect(
+			flags.find((f) => f.flag === "--transaction.category_id"),
+		).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.memo")).toBeDefined();
+		expect(
+			flags.find((f) => f.flag === "--transaction.flag_color"),
+		).toBeDefined();
+	});
+
 	test("handles allOf with properties alongside", () => {
 		const flags = generateBodyFlags(
 			{

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import type { CommandAction } from "../model/command-model.js";
@@ -312,6 +314,39 @@ describe("buildRequest (--data / --file)", () => {
 					authSchemes: [],
 				}),
 			).toThrow("Cannot use both --data and --file");
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("--file reads body from file", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+
+		try {
+			const dir = `${tmpdir()}/specli-file-test-${crypto.randomUUID()}`;
+			mkdirSync(dir, { recursive: true });
+			const filePath = join(dir, "body.json");
+			writeFileSync(filePath, '{"name":"from-file"}');
+
+			const action = makeAction({
+				requestBodySchema: undefined,
+			});
+
+			const { request } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { file: filePath },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+			});
+
+			expect(await request.clone().text()).toBe('{"name":"from-file"}');
 		} finally {
 			process.env.HOME = prevHome;
 		}
