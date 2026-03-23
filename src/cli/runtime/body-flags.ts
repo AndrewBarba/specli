@@ -6,13 +6,24 @@
  */
 
 type JsonSchema = {
-	type?: string;
+	type?: string | string[];
 	properties?: Record<string, JsonSchema>;
 	items?: JsonSchema;
 	required?: string[];
 	description?: string;
 	allOf?: JsonSchema[];
 };
+
+/**
+ * Resolve OpenAPI 3.1 nullable type arrays (e.g. ["string", "null"])
+ * to their non-null scalar type. Returns the raw type for simple strings.
+ */
+function resolveType(type: string | string[] | undefined): string | undefined {
+	if (Array.isArray(type)) {
+		return type.find((t) => t !== "null");
+	}
+	return type;
+}
 
 export type BodyFlagDef = {
 	flag: string; // e.g. "--name" or "--address.street"
@@ -69,7 +80,7 @@ export function generateBodyFlags(
 	if (!schema) return [];
 
 	const resolved = flattenAllOf(schema);
-	if (resolved.type !== "object" || !resolved.properties) {
+	if (resolveType(resolved.type) !== "object" || !resolved.properties) {
 		return [];
 	}
 
@@ -99,7 +110,7 @@ function collectFlags(
 		if (reservedFlags.has(flagName)) continue;
 
 		const resolved = flattenAllOf(propSchema);
-		const t = resolved.type;
+		const t = resolveType(resolved.type);
 
 		if (t === "object" && resolved.properties) {
 			// Recurse into nested object

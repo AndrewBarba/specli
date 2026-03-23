@@ -231,6 +231,71 @@ describe("generateBodyFlags", () => {
 		});
 	});
 
+	test("handles OpenAPI 3.1 nullable types (type arrays)", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					name: { type: "string", description: "Name" },
+					payee_name: {
+						type: ["string", "null"],
+						description: "Payee name",
+					},
+					memo: { type: ["string", "null"], description: "Memo" },
+					amount: { type: "integer", description: "Amount" },
+					category_id: {
+						type: ["string", "null"],
+						description: "Category",
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(5);
+		expect(flags.find((f) => f.flag === "--name")?.type).toBe("string");
+		expect(flags.find((f) => f.flag === "--payee_name")?.type).toBe("string");
+		expect(flags.find((f) => f.flag === "--memo")?.type).toBe("string");
+		expect(flags.find((f) => f.flag === "--amount")?.type).toBe("integer");
+		expect(flags.find((f) => f.flag === "--category_id")?.type).toBe("string");
+	});
+
+	test("handles nullable types in nested allOf schemas", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					transaction: {
+						allOf: [
+							{ type: "object" },
+							{
+								type: "object",
+								properties: {
+									account_id: { type: "string" },
+									payee_name: {
+										type: ["string", "null"],
+										description: "The payee name",
+									},
+									memo: { type: ["string", "null"] },
+								},
+							},
+						],
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(3);
+		expect(
+			flags.find((f) => f.flag === "--transaction.account_id"),
+		).toBeDefined();
+		expect(
+			flags.find((f) => f.flag === "--transaction.payee_name"),
+		).toBeDefined();
+		expect(flags.find((f) => f.flag === "--transaction.memo")).toBeDefined();
+	});
+
 	test("handles allOf with properties alongside", () => {
 		const flags = generateBodyFlags(
 			{
