@@ -7,6 +7,7 @@
 
 type JsonSchema = {
 	type?: string;
+	format?: string;
 	properties?: Record<string, JsonSchema>;
 	items?: JsonSchema;
 	required?: string[];
@@ -17,9 +18,18 @@ export type BodyFlagDef = {
 	flag: string; // e.g. "--name" or "--address.street"
 	path: string[]; // e.g. ["name"] or ["address", "street"]
 	type: "string" | "number" | "integer" | "boolean";
+	format?: string;
 	description: string;
 	required: boolean;
 };
+
+/**
+ * File-typed flags (binary strings) take a filesystem path when the
+ * request body is multipart/form-data.
+ */
+export function isFileBodyFlag(def: BodyFlagDef): boolean {
+	return def.type === "string" && def.format === "binary";
+}
 
 /**
  * Generate flag definitions from a JSON schema.
@@ -84,6 +94,7 @@ function collectFlags(
 				flag: flagName,
 				path,
 				type: t,
+				format: propSchema.format,
 				description: propSchema.description ?? `Body field '${path.join(".")}'`,
 				required: isRequired,
 			});

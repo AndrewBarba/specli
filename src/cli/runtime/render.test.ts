@@ -207,6 +207,25 @@ describe("renderToString", () => {
 		expect(output).toContain("Authorization: Bearer token");
 	});
 
+	test("prepared renders multipart body parts", () => {
+		const output = renderToString({
+			type: "prepared",
+			request: {
+				method: "POST",
+				url: "https://api.example.com/speech-to-text",
+				headers: {},
+				bodyParts: [
+					{ name: "file", value: "/tmp/audio.mp3", isFile: true },
+					{ name: "model_id", value: "scribe_v1", isFile: false },
+				],
+				curl: "curl ...",
+			},
+		});
+		expect(output).toContain("Body:");
+		expect(output).toContain("file=@/tmp/audio.mp3");
+		expect(output).toContain("model_id=scribe_v1");
+	});
+
 	test("curl renders just the curl command", () => {
 		const output = renderToString(curlResult);
 		expect(output).toBe("curl -X GET https://api.example.com/users\n");

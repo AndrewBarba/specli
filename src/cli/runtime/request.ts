@@ -1,10 +1,14 @@
+import { basename } from "node:path";
+
 import type { CommandAction } from "../model/command-model.js";
 import type { AuthScheme } from "../parse/auth-schemes.js";
 import type { ServerInfo } from "../parse/servers.js";
 
 import { resolveAuthScheme } from "./auth/resolve.js";
+import { fileExists, isBun } from "./compat.js";
 import { getToken } from "./profile/secrets.js";
 import { getProfile, readProfiles } from "./profile/store.js";
+import type { BodyPart } from "./result.js";
 import { resolveServerUrl } from "./server-url.js";
 import { applyTemplate } from "./template.js";
 import {
@@ -151,9 +155,12 @@ export type BuildRequestInput = {
 	bodyFlagDefs?: import("./body-flags.js").BodyFlagDef[];
 };
 
-export async function buildRequest(
-	input: BuildRequestInput,
-): Promise<{ request: Request; curl: string; body?: string }> {
+export async function buildRequest(input: BuildRequestInput): Promise<{
+	request: Request;
+	curl: string;
+	body?: string;
+	bodyParts?: BodyPart[];
+}> {
 	// Always use the "default" profile for simplicity
 	const defaultProfileName = "default";
 	const profilesFile = await readProfiles();
@@ -258,6 +265,8 @@ export async function buildRequest(
 	}
 
 	let body: string | undefined;
+	let formData: FormData | undefined;
+	let bodyParts: BodyPart[] | undefined;
 	if (input.action.requestBody) {
 		// Check if any body flags were provided using the flag definitions
 		const bodyFlagDefs = input.bodyFlagDefs ?? [];
@@ -268,7 +277,10 @@ export async function buildRequest(
 		});
 
 		const contentType = input.action.requestBody.preferredContentType;
-		if (contentType) headers.set("Content-Type", contentType);
+		const isMultipart = contentType?.startsWith("multipart/form-data") ?? false;
+		// For multipart the Request constructor derives the Content-Type
+		// (including the boundary) from the FormData body.
+		if (contentType && !isMultipart) headers.set("Content-Type", contentType);
 
 		const schema = input.action.requestBodySchema;
 
@@ -281,30 +293,47 @@ export async function buildRequest(
 				const flagList = requiredFields.map((d) => `--${d.path.join(".")}`);
 				throw new Error(`Required: ${flagList.join(", ")}`);
 			}
+			if (isMultipart && input.action.requestBody.required) {
+				throw new Error("Multipart request body requires body field flags.");
+			}
 			// No required fields - send empty body if body is required, otherwise skip
 			if (input.action.requestBody.required) {
 				body = "{}";
 			}
 		} else {
-			if (!contentType?.includes("json")) {
+			if (!isMultipart && !contentType?.includes("json")) {
 				throw new Error(
-					"Body field flags are only supported for JSON request bodies.",
+					"Body field flags are only supported for JSON and multipart/form-data request bodies.",
 				);
 			}
 
 			// Check for missing required fields
-			const { findMissingRequired, parseDotNotationFlags } = await import(
-				"./body-flags.js"
-			);
+			const { findMissingRequired, isFileBodyFlag, parseDotNotationFlags } =
+				await import("./body-flags.js");
 			const missing = findMissingRequired(input.flagValues, bodyFlagDefs);
 			if (missing.length > 0) {
 				const missingFlags = missing.map((m) => `--${m}`).join(", ");
 				throw new Error(`Missing required fields: ${missingFlags}`);
 			}
 
+			const provided = bodyFlagDefs.filter(
+				(def) => input.flagValues[def.path.join(".")] !== undefined,
+			);
+			if (isMultipart) {
+				const nested = provided.filter((def) => def.path.length > 1);
+				if (nested.length > 0) {
+					const flags = nested.map((d) => d.flag).join(", ");
+					throw new Error(
+						`Nested body fields are not supported for multipart requests: ${flags}`,
+					);
+				}
+			}
+
 			// Build nested object from dot-notation flags
 			const built = parseDotNotationFlags(input.flagValues, bodyFlagDefs);
 
+			// File flags hold path strings here; validation runs on the paths,
+			// conversion to file blobs happens after.
 			if (schema) {
 				const validate = ajv.compile(schema);
 				if (!validate(built)) {
@@ -312,7 +341,40 @@ export async function buildRequest(
 				}
 			}
 
-			body = JSON.stringify(built);
+			if (isMultipart) {
+				const fileDefs = provided.filter(isFileBodyFlag);
+				if (fileDefs.length > 0 && !isBun) {
+					throw new Error("File uploads require Bun.");
+				}
+				const missingFiles: string[] = [];
+				for (const def of fileDefs) {
+					const filePath = String(built[def.path[0] as string]);
+					if (!(await fileExists(filePath))) {
+						missingFiles.push(`${filePath} (${def.flag})`);
+					}
+				}
+				if (missingFiles.length > 0) {
+					throw new Error(`File not found: ${missingFiles.join(", ")}`);
+				}
+
+				formData = new FormData();
+				bodyParts = [];
+				for (const def of provided) {
+					const name = def.path[0] as string;
+					const value = built[name];
+					if (value === undefined) continue;
+					if (isFileBodyFlag(def)) {
+						const filePath = String(value);
+						formData.append(name, Bun.file(filePath), basename(filePath));
+						bodyParts.push({ name, value: filePath, isFile: true });
+					} else {
+						formData.append(name, String(value));
+						bodyParts.push({ name, value: String(value), isFile: false });
+					}
+				}
+			} else {
+				body = JSON.stringify(built);
+			}
 		}
 	}
 
@@ -356,20 +418,34 @@ export async function buildRequest(
 	const req = new Request(final.url.toString(), {
 		method: input.action.method,
 		headers: final.headers,
-		body,
+		body: formData ?? body,
 	});
 
-	const curl = buildCurl(req, body);
-	return { request: req, curl, body };
+	const curl = buildCurl(req, body, bodyParts);
+	return { request: req, curl, body, bodyParts };
 }
 
-function buildCurl(req: Request, body: string | undefined): string {
+function buildCurl(
+	req: Request,
+	body: string | undefined,
+	bodyParts: BodyPart[] | undefined,
+): string {
 	const parts: string[] = ["curl", "-sS", "-X", req.method];
 	for (const [k, v] of req.headers.entries()) {
+		// For multipart, curl must generate its own boundary.
+		if (bodyParts && k.toLowerCase() === "content-type") continue;
 		const value = k.toLowerCase() === "authorization" ? maskAuthHeader(v) : v;
 		parts.push("-H", shellQuote(`${k}: ${value}`));
 	}
-	if (typeof body === "string") {
+	if (bodyParts) {
+		for (const part of bodyParts) {
+			if (part.isFile) {
+				parts.push("-F", shellQuote(`${part.name}=@${part.value}`));
+			} else {
+				parts.push("--form-string", shellQuote(`${part.name}=${part.value}`));
+			}
+		}
+	} else if (typeof body === "string") {
 		parts.push("--data", shellQuote(body));
 	}
 	parts.push(shellQuote(req.url));

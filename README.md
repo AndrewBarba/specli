@@ -440,8 +440,7 @@ The tool supports three commands:
 - OpenAPI 3.x only (Swagger 2.0 not supported)
 - Array serialization uses repeated keys only (`?tag=a&tag=b`)
 - OpenAPI `style`/`explode`/deepObject not implemented
-- Body field flags only support JSON with scalar/nested object properties
-- Multipart and binary uploads not implemented
+- Body field flags support JSON (scalar/nested object properties) and flat `multipart/form-data` bodies; `format: binary` fields take a file path (e.g. `--file ./audio.mp3`). JSON is preferred when an operation offers both. Arrays of files and nested multipart fields are not supported; file uploads require Bun.
 - OAuth2 token acquisition not implemented (use `--bearer-token` with pre-acquired tokens)
 
 ## Development
