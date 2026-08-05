@@ -84,6 +84,7 @@ export function buildCommandModel(
 		const params = deriveParamSpecs(op);
 		const positionals = derivePositionals({ pathArgs: op.pathArgs, params });
 		const flags = deriveFlags({ pathArgs: op.pathArgs, params });
+		const requestBodyInfo = deriveRequestBodyInfo(op);
 
 		list.push({
 			id: buildCommandId({
@@ -112,8 +113,8 @@ export function buildCommandModel(
 				options.globalSecurity,
 				options.authSchemes ?? [],
 			),
-			requestBody: deriveRequestBodyInfo(op),
-			requestBodySchema: deriveRequestBodyInfo(op)?.preferredSchema,
+			requestBody: requestBodyInfo,
+			requestBodySchema: requestBodyInfo?.preferredSchema,
 		});
 		byResource.set(op.resource, list);
 	}

@@ -32,4 +32,53 @@ describe("deriveRequestBodyInfo", () => {
 		]);
 		expect(info?.preferredSchema).toEqual({ type: "object" });
 	});
+
+	test("prefers JSON when both JSON and multipart are offered", () => {
+		const op: NormalizedOperation = {
+			key: "POST /speech-to-text",
+			method: "POST",
+			path: "/speech-to-text",
+			tags: [],
+			parameters: [],
+			requestBody: {
+				required: true,
+				contentTypes: ["multipart/form-data", "application/json"],
+				schemasByContentType: {
+					"application/json": { type: "object" },
+					"multipart/form-data": { type: "object" },
+				},
+			},
+		};
+
+		const info = deriveRequestBodyInfo(op);
+		expect(info?.preferredContentType).toBe("application/json");
+	});
+
+	test("selects multipart for multipart-only operations", () => {
+		const op: NormalizedOperation = {
+			key: "POST /speech-to-text",
+			method: "POST",
+			path: "/speech-to-text",
+			tags: [],
+			parameters: [],
+			requestBody: {
+				required: true,
+				contentTypes: ["multipart/form-data"],
+				schemasByContentType: {
+					"multipart/form-data": {
+						type: "object",
+						properties: { file: { type: "string", format: "binary" } },
+					},
+				},
+			},
+		};
+
+		const info = deriveRequestBodyInfo(op);
+		expect(info?.hasMultipart).toBe(true);
+		expect(info?.preferredContentType).toBe("multipart/form-data");
+		expect(info?.preferredSchema).toEqual({
+			type: "object",
+			properties: { file: { type: "string", format: "binary" } },
+		});
+	});
 });

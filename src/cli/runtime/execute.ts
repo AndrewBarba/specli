@@ -41,7 +41,7 @@ export async function prepare(
 	input: Omit<ExecuteInput, "resourceName">,
 ): Promise<CommandResult> {
 	try {
-		const { request, curl, body } = await buildRequest({
+		const { request, curl, body, bodyParts } = await buildRequest({
 			specId: input.specId,
 			action: input.action,
 			positionalValues: input.positionalValues,
@@ -63,6 +63,7 @@ export async function prepare(
 			url: request.url,
 			headers,
 			body,
+			bodyParts,
 			curl,
 		};
 
@@ -89,7 +90,7 @@ export async function execute(
 	const startedAt = new Date().toISOString();
 
 	try {
-		const { request, curl, body } = await buildRequest({
+		const { request, curl, body, bodyParts } = await buildRequest({
 			specId: input.specId,
 			action: input.action,
 			positionalValues: input.positionalValues,
@@ -111,6 +112,7 @@ export async function execute(
 			url: request.url,
 			headers,
 			body,
+			bodyParts,
 			curl,
 		};
 

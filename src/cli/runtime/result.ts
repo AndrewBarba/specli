@@ -12,6 +12,16 @@
 // ----------------------------------------------------------------------------
 
 /**
+ * A single multipart/form-data body part.
+ * For file parts, `value` is the source file path.
+ */
+export type BodyPart = {
+	name: string;
+	value: string;
+	isFile: boolean;
+};
+
+/**
  * A request that has been built but not yet executed.
  * Can be inspected, modified, or converted to curl.
  */
@@ -24,6 +34,8 @@ export type PreparedRequest = {
 	headers: Record<string, string>;
 	/** Request body (if any) */
 	body?: string;
+	/** Multipart body parts (if any); for files, value is the source file path */
+	bodyParts?: BodyPart[];
 	/** Curl command equivalent */
 	curl: string;
 };

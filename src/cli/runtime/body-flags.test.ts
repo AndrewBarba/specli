@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	findMissingRequired,
 	generateBodyFlags,
+	isFileBodyFlag,
 	parseDotNotationFlags,
 } from "./body-flags.js";
 
@@ -145,6 +146,46 @@ describe("generateBodyFlags", () => {
 		);
 
 		expect(flags[0]?.description).toBe("User email address");
+	});
+});
+
+describe("isFileBodyFlag", () => {
+	test("binary string properties are file flags", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					file: { type: "string", format: "binary" },
+					model_id: { type: "string" },
+				},
+				required: ["file"],
+			},
+			new Set(),
+		);
+
+		const file = flags.find((f) => f.flag === "--file");
+		expect(file?.format).toBe("binary");
+		expect(isFileBodyFlag(file as NonNullable<typeof file>)).toBe(true);
+
+		const modelId = flags.find((f) => f.flag === "--model_id");
+		expect(isFileBodyFlag(modelId as NonNullable<typeof modelId>)).toBe(false);
+	});
+
+	test("array of binary strings still produces no flag", () => {
+		const flags = generateBodyFlags(
+			{
+				type: "object",
+				properties: {
+					files: {
+						type: "array",
+						items: { type: "string", format: "binary" },
+					},
+				},
+			},
+			new Set(),
+		);
+
+		expect(flags).toHaveLength(0);
 	});
 });
 

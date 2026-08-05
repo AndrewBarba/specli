@@ -226,6 +226,16 @@ function renderPreparedText(
 		lines.push("");
 		lines.push("Body:");
 		lines.push(request.body);
+	} else if (request.bodyParts) {
+		lines.push("");
+		lines.push("Body:");
+		for (const part of request.bodyParts) {
+			lines.push(
+				part.isFile
+					? `  ${part.name}=@${part.value}`
+					: `  ${part.name}=${part.value}`,
+			);
+		}
 	}
 
 	return `${lines.join("\n")}\n`;

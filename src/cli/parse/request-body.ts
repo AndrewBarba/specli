@@ -27,8 +27,6 @@ export type RequestBodyInfo = {
 	hasFormUrlEncoded: boolean;
 	hasMultipart: boolean;
 
-	// Phase 1 planning: supported generic body inputs.
-	bodyFlags: string[];
 	preferredContentType?: string;
 
 	// Original JSON Schema (for expanded flags + validation)
@@ -69,8 +67,6 @@ export function deriveRequestBodyInfo(
 		c.contentType.startsWith("multipart/"),
 	);
 
-	const bodyFlags = ["--data", "--file"]; // always available when requestBody exists
-
 	const preferredContentType =
 		content.find((c) => c.contentType === "application/json")?.contentType ??
 		content.find((c) => c.contentType.includes("json"))?.contentType ??
@@ -86,7 +82,6 @@ export function deriveRequestBodyInfo(
 		hasJson,
 		hasFormUrlEncoded,
 		hasMultipart,
-		bodyFlags,
 		preferredContentType,
 		preferredSchema: isJsonSchema(preferredSchema)
 			? preferredSchema

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import type { CommandAction } from "../model/command-model.js";
@@ -35,7 +36,6 @@ function makeAction(partial?: Partial<CommandAction>): CommandAction {
 			hasJson: true,
 			hasFormUrlEncoded: false,
 			hasMultipart: false,
-			bodyFlags: ["--data", "--file"],
 			preferredContentType: "application/json",
 			preferredSchema: undefined,
 		},
@@ -222,6 +222,266 @@ describe("buildRequest (requestBody)", () => {
 		} finally {
 			process.env.HOME = prevHome;
 		}
+	});
+});
+
+function makeMultipartAction(partial?: Partial<CommandAction>): CommandAction {
+	return makeAction({
+		requestBody: {
+			required: true,
+			content: [
+				{
+					contentType: "multipart/form-data",
+					required: true,
+					schemaType: "object",
+				},
+			],
+			hasJson: false,
+			hasFormUrlEncoded: false,
+			hasMultipart: true,
+			preferredContentType: "multipart/form-data",
+			preferredSchema: undefined,
+		},
+		requestBodySchema: {
+			type: "object",
+			properties: {
+				file: { type: "string", format: "binary" },
+				model_id: { type: "string" },
+			},
+			required: ["file", "model_id"],
+		},
+		...partial,
+	});
+}
+
+async function withMultipartSetup(
+	fn: (ctx: { dir: string; audioPath: string }) => Promise<void>,
+): Promise<void> {
+	const prevHome = process.env.HOME;
+	const dir = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+	process.env.HOME = dir;
+	mkdirSync(dir, { recursive: true });
+	const audioPath = `${dir}/audio.mp3`;
+	writeFileSync(audioPath, "fake-audio-bytes");
+
+	try {
+		await fn({ dir, audioPath });
+	} finally {
+		process.env.HOME = prevHome;
+	}
+}
+
+const testServers = [
+	{ url: "https://api.example.com", variables: [], variableNames: [] },
+];
+
+describe("buildRequest (multipart)", () => {
+	test("builds FormData body with file and scalar fields", async () => {
+		await withMultipartSetup(async ({ audioPath }) => {
+			const action = makeMultipartAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			const { request, body, bodyParts } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { file: audioPath, model_id: "scribe_v1" },
+				globals: {},
+				servers: testServers,
+				authSchemes: [],
+				bodyFlagDefs,
+			});
+
+			expect(request.headers.get("Content-Type")).toMatch(
+				/^multipart\/form-data; boundary=/,
+			);
+			const formData = await request.clone().formData();
+			expect(formData.get("model_id")).toBe("scribe_v1");
+			const file = formData.get("file");
+			expect(file).toBeInstanceOf(File);
+			expect((file as File).name).toBe("audio.mp3");
+			expect(await (file as File).text()).toBe("fake-audio-bytes");
+
+			expect(body).toBeUndefined();
+			expect(bodyParts).toEqual([
+				{ name: "file", value: audioPath, isFile: true },
+				{ name: "model_id", value: "scribe_v1", isFile: false },
+			]);
+		});
+	});
+
+	test("curl output uses -F for files and omits content-type", async () => {
+		await withMultipartSetup(async ({ audioPath }) => {
+			const action = makeMultipartAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			const { curl } = await buildRequest({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { file: audioPath, model_id: "scribe_v1" },
+				globals: {},
+				servers: testServers,
+				authSchemes: [],
+				bodyFlagDefs,
+			});
+
+			expect(curl).toContain(`-F 'file=@${audioPath}'`);
+			expect(curl).toContain("--form-string 'model_id=scribe_v1'");
+			expect(curl.toLowerCase()).not.toContain("content-type");
+			expect(curl).not.toContain("--data");
+		});
+	});
+
+	test("throws when file does not exist", async () => {
+		await withMultipartSetup(async ({ dir }) => {
+			const action = makeMultipartAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			await expect(() =>
+				buildRequest({
+					specId: "spec",
+					action,
+					positionalValues: [],
+					flagValues: { file: `${dir}/missing.mp3`, model_id: "scribe_v1" },
+					globals: {},
+					servers: testServers,
+					authSchemes: [],
+					bodyFlagDefs,
+				}),
+			).toThrow(`File not found: ${dir}/missing.mp3 (--file)`);
+		});
+	});
+
+	test("throws when required scalar field is missing", async () => {
+		await withMultipartSetup(async ({ audioPath }) => {
+			const action = makeMultipartAction();
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			await expect(() =>
+				buildRequest({
+					specId: "spec",
+					action,
+					positionalValues: [],
+					flagValues: { file: audioPath },
+					globals: {},
+					servers: testServers,
+					authSchemes: [],
+					bodyFlagDefs,
+				}),
+			).toThrow("Missing required fields: --model_id");
+		});
+	});
+
+	test("throws when required multipart body has no flags", async () => {
+		await withMultipartSetup(async () => {
+			const action = makeMultipartAction({
+				requestBodySchema: {
+					type: "object",
+					properties: {
+						file: { type: "string", format: "binary" },
+					},
+				},
+			});
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			await expect(() =>
+				buildRequest({
+					specId: "spec",
+					action,
+					positionalValues: [],
+					flagValues: {},
+					globals: {},
+					servers: testServers,
+					authSchemes: [],
+					bodyFlagDefs,
+				}),
+			).toThrow("Multipart request body requires body field flags.");
+		});
+	});
+
+	test("validates scalar fields with the body schema", async () => {
+		await withMultipartSetup(async ({ audioPath }) => {
+			const action = makeMultipartAction({
+				requestBodySchema: {
+					type: "object",
+					properties: {
+						file: { type: "string", format: "binary" },
+						num_speakers: { type: "integer" },
+					},
+					required: ["file"],
+				},
+			});
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			await expect(() =>
+				buildRequest({
+					specId: "spec",
+					action,
+					positionalValues: [],
+					flagValues: { file: audioPath, num_speakers: "abc" },
+					globals: {},
+					servers: testServers,
+					authSchemes: [],
+					bodyFlagDefs,
+				}),
+			).toThrow();
+		});
+	});
+
+	test("throws for nested body fields under multipart", async () => {
+		await withMultipartSetup(async ({ audioPath }) => {
+			const action = makeMultipartAction({
+				requestBodySchema: {
+					type: "object",
+					properties: {
+						file: { type: "string", format: "binary" },
+						options: {
+							type: "object",
+							properties: { language: { type: "string" } },
+						},
+					},
+					required: ["file"],
+				},
+			});
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			await expect(() =>
+				buildRequest({
+					specId: "spec",
+					action,
+					positionalValues: [],
+					flagValues: { file: audioPath, "options.language": "en" },
+					globals: {},
+					servers: testServers,
+					authSchemes: [],
+					bodyFlagDefs,
+				}),
+			).toThrow(
+				"Nested body fields are not supported for multipart requests: --options.language",
+			);
+		});
 	});
 });
 

@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import type { CommandAction } from "../model/command-model.js";
 
+import { generateBodyFlags } from "./body-flags.js";
 import { execute } from "./execute.js";
 
 function makeAction(partial?: Partial<CommandAction>): CommandAction {
@@ -185,6 +187,92 @@ describe("execute", () => {
 			if (result.type === "error") {
 				expect(result.message).toBe("Network error: connection refused");
 			}
+		} finally {
+			process.env.HOME = prevHome;
+		}
+	});
+
+	test("sends multipart body and reports bodyParts", async () => {
+		const prevHome = process.env.HOME;
+		const home = `${tmpdir()}/specli-test-${crypto.randomUUID()}`;
+		process.env.HOME = home;
+		mkdirSync(home, { recursive: true });
+		const audioPath = `${home}/audio.mp3`;
+		writeFileSync(audioPath, "fake-audio-bytes");
+
+		try {
+			const action = makeAction({
+				key: "POST /speech-to-text",
+				action: "create",
+				pathArgs: [],
+				rawPathArgs: [],
+				method: "POST",
+				path: "/speech-to-text",
+				positionals: [],
+				requestBody: {
+					required: true,
+					content: [
+						{
+							contentType: "multipart/form-data",
+							required: true,
+							schemaType: "object",
+						},
+					],
+					hasJson: false,
+					hasFormUrlEncoded: false,
+					hasMultipart: true,
+					preferredContentType: "multipart/form-data",
+					preferredSchema: undefined,
+				},
+				requestBodySchema: {
+					type: "object",
+					properties: {
+						file: { type: "string", format: "binary" },
+						model_id: { type: "string" },
+					},
+					required: ["file", "model_id"],
+				},
+			});
+			const bodyFlagDefs = generateBodyFlags(
+				action.requestBodySchema,
+				new Set(),
+			);
+
+			let capturedForm: Awaited<ReturnType<Request["formData"]>> | undefined;
+			const customFetch = (async (input: Request): Promise<Response> => {
+				capturedForm = await input.formData();
+				return new Response(JSON.stringify({ text: "hello" }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}) as typeof fetch;
+
+			const result = await execute({
+				specId: "spec",
+				action,
+				positionalValues: [],
+				flagValues: { file: audioPath, model_id: "scribe_v1" },
+				globals: {},
+				servers: [
+					{ url: "https://api.example.com", variables: [], variableNames: [] },
+				],
+				authSchemes: [],
+				bodyFlagDefs,
+				fetch: customFetch,
+			});
+
+			expect(result.type).toBe("success");
+			if (result.type === "success") {
+				expect(result.request.body).toBeUndefined();
+				expect(result.request.bodyParts).toEqual([
+					{ name: "file", value: audioPath, isFile: true },
+					{ name: "model_id", value: "scribe_v1", isFile: false },
+				]);
+			}
+			expect(capturedForm?.get("model_id")).toBe("scribe_v1");
+			expect(await (capturedForm?.get("file") as File).text()).toBe(
+				"fake-audio-bytes",
+			);
 		} finally {
 			process.env.HOME = prevHome;
 		}

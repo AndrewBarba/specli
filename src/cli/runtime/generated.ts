@@ -4,7 +4,11 @@ import type { CommandAction, CommandModel } from "../model/command-model.js";
 import type { AuthScheme } from "../parse/auth-schemes.js";
 import type { ServerInfo } from "../parse/servers.js";
 
-import { type BodyFlagDef, generateBodyFlags } from "./body-flags.js";
+import {
+	type BodyFlagDef,
+	generateBodyFlags,
+	isFileBodyFlag,
+} from "./body-flags.js";
 import { executeAction } from "./execute.js";
 import type { EmbeddedDefaults } from "./request.js";
 import { coerceArrayInput, coerceValue } from "./validate/index.js";
@@ -73,7 +77,8 @@ function formatCustomHelp(
 
 	// Body flags
 	for (const def of bodyFlagDefs) {
-		const line = formatOpt(def.flag, def.type, def.description, def.required);
+		const type = isFileBodyFlag(def) ? "path" : def.type;
+		const line = formatOpt(def.flag, type, def.description, def.required);
 		if (def.required) {
 			requiredOpts.push(line);
 		} else {
@@ -201,7 +206,8 @@ export function addGeneratedCommands(
 					if (def.type === "boolean") {
 						cmd.option(def.flag, def.description);
 					} else {
-						cmd.option(`${def.flag} <value>`, def.description);
+						const placeholder = isFileBodyFlag(def) ? "<path>" : "<value>";
+						cmd.option(`${def.flag} ${placeholder}`, def.description);
 					}
 				}
 			}
