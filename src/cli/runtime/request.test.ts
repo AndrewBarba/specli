@@ -35,7 +35,6 @@ function makeAction(partial?: Partial<CommandAction>): CommandAction {
 			hasJson: true,
 			hasFormUrlEncoded: false,
 			hasMultipart: false,
-			bodyFlags: ["--data", "--file"],
 			preferredContentType: "application/json",
 			preferredSchema: undefined,
 		},
