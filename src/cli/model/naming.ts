@@ -178,8 +178,8 @@ function extractDisambiguator(
 
 /**
  * Meaningful action candidates for a colliding operation, most specific first:
- * the distinguishing part of the operationId, then the path segments that are
- * not already represented by the resource.
+ * the distinguishing part of the operationId, then a path segment that the
+ * resource does not already represent.
  */
 function disambiguationCandidates(op: PlannedOperation): string[] {
 	const candidates: string[] = [];
@@ -193,12 +193,16 @@ function disambiguationCandidates(op: PlannedOperation): string[] {
 		if (disambiguator) candidates.push(`${op.action}-${disambiguator}`);
 	}
 
+	const segments = getPathSegments(op.path);
+	// Look for the last non-parameter segment that isn't the resource
 	const singularResource = op.resource.replace(/s$/, "");
-	for (const segment of getPathSegments(op.path).reverse()) {
-		if (segment.startsWith("{")) continue;
-		const kebabSegment = kebabCase(segment);
-		if (kebabSegment !== op.resource && kebabSegment !== singularResource) {
-			candidates.push(`${op.action}-${kebabSegment}`);
+	for (let i = segments.length - 1; i >= 0; i--) {
+		const seg = segments[i];
+		if (!seg || seg.startsWith("{")) continue;
+		const kebabSeg = kebabCase(seg);
+		if (kebabSeg !== op.resource && kebabSeg !== singularResource) {
+			candidates.push(`${op.action}-${kebabSeg}`);
+			break;
 		}
 	}
 
