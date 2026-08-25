@@ -211,7 +211,8 @@ function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
 }
 
 function derivePathIdentityAction(op: PlannedOperation): string {
-	const path = kebabCase(op.path.replace(/\{[^}]+\}/g, ""));
+	const re = /\{[^}]+\}/g;
+	const path = kebabCase(op.path.replace(re, ""));
 	return path ? `${op.action}-${path}` : "";
 }
 
@@ -222,17 +223,17 @@ type CollisionCandidate = {
 		operationId: string;
 		path: string;
 	};
-	action: string;
+	assignedAction?: string;
 };
 
-function claimUniqueActions(
+function assignUniqueActions(
 	candidates: CollisionCandidate[],
 	source: keyof CollisionCandidate["candidates"],
 	allocatedCommands: Set<string>,
 ): void {
 	const counts = new Map<string, number>();
 	for (const candidate of candidates) {
-		if (candidate.action) continue;
+		if (candidate.assignedAction !== undefined) continue;
 		const action = candidate.candidates[source];
 		if (!action) continue;
 		const command = `${candidate.operation.resource}:${action}`;
@@ -240,7 +241,7 @@ function claimUniqueActions(
 	}
 
 	for (const candidate of candidates) {
-		if (candidate.action) continue;
+		if (candidate.assignedAction !== undefined) continue;
 		const action = candidate.candidates[source];
 		const command = `${candidate.operation.resource}:${action}`;
 		if (
@@ -248,7 +249,7 @@ function claimUniqueActions(
 			counts.get(command) === 1 &&
 			!allocatedCommands.has(command)
 		) {
-			candidate.action = action;
+			candidate.assignedAction = action;
 			allocatedCommands.add(command);
 		}
 	}
@@ -339,14 +340,18 @@ export function planOperation(op: NormalizedOperation): PlannedOperation {
 export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 	const planned = ops.map(planOperation);
 
+	// Count initial commands so only colliding operations are reallocated.
 	const counts = new Map<string, number>();
 	for (const op of planned) {
 		const key = `${op.resource}:${op.action}`;
 		counts.set(key, (counts.get(key) ?? 0) + 1);
 	}
-	const allocatedCommands = new Set(
-		[...counts].filter(([, count]) => count === 1).map(([command]) => command),
-	);
+
+	// Reserve non-colliding commands so fallback names cannot replace them.
+	const allocatedCommands = new Set<string>();
+	for (const [command, count] of counts) {
+		if (count === 1) allocatedCommands.add(command);
+	}
 
 	const seen = new Map<string, number>();
 	const candidates: CollisionCandidate[] = [];
@@ -364,17 +369,16 @@ export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 				operationId: kebabCase(op.operationId ?? ""),
 				path: derivePathIdentityAction(op),
 			},
-			action: "",
 		});
 	}
 
-	// Preserve existing names before falling back to authored and route identity.
+	// Assign each operation at the first tier where its name is unique and free.
 	for (const source of ["preferred", "operationId", "path"] as const) {
-		claimUniqueActions(candidates, source, allocatedCommands);
+		assignUniqueActions(candidates, source, allocatedCommands);
 	}
 
 	for (const candidate of candidates) {
-		if (candidate.action) continue;
+		if (candidate.assignedAction !== undefined) continue;
 		const { operation } = candidate;
 		const preferred = candidate.candidates.preferred;
 		let action = preferred;
@@ -383,16 +387,19 @@ export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 			action = `${preferred}-${suffix}`;
 			suffix++;
 		}
-		candidate.action = action;
+		candidate.assignedAction = action;
 		allocatedCommands.add(`${operation.resource}:${action}`);
 	}
 
 	const actions = new Map(
-		candidates.map(({ operation, action }) => [operation, action]),
+		candidates.map(({ operation, assignedAction }) => [
+			operation,
+			assignedAction,
+		]),
 	);
 	return planned.map((op) => {
 		const action = actions.get(op);
-		return action
+		return action !== undefined
 			? {
 					...op,
 					action,
