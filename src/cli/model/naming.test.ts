@@ -151,6 +151,69 @@ describe("planOperations collision handling", () => {
 		expect(planned[2]?.action).toBe("get-files");
 	});
 
+	test("disambiguated names never collide with each other", () => {
+		// Both operationIds reduce to the same disambiguator ("priorities"),
+		// which used to produce two `list-priorities` commands.
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /priority",
+				method: "GET",
+				path: "/priority",
+				operationId: "getPriorities",
+				tags: ["Issue priorities"],
+				parameters: [],
+			},
+			{
+				key: "GET /priority/search",
+				method: "GET",
+				path: "/priority/search",
+				operationId: "searchPriorities",
+				tags: ["Issue priorities"],
+				parameters: [],
+			},
+		];
+
+		const planned = planOperations(ops);
+		expect(planned[0]?.action).toBe("list-priorities");
+		expect(planned[1]?.action).toBe("list-search");
+	});
+
+	test("disambiguated names never collide with an unrelated command", () => {
+		// `list-events` is already taken by a non-colliding operation, so the
+		// colliding one must fall through to another candidate.
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /events",
+				method: "GET",
+				path: "/events",
+				operationId: "listProjectEvents",
+				tags: ["projects"],
+				parameters: [],
+			},
+			{
+				key: "GET /projects",
+				method: "GET",
+				path: "/projects",
+				operationId: "listProjects",
+				tags: ["projects"],
+				parameters: [],
+			},
+			{
+				key: "GET /teams/events",
+				method: "GET",
+				path: "/teams/events",
+				operationId: "listProjectEventsByTeam",
+				tags: ["projects"],
+				parameters: [],
+			},
+		];
+
+		const planned = planOperations(ops);
+		expect(planned[0]?.action).toBe("list-events");
+		expect(planned[1]?.action).toBe("list-1");
+		expect(planned[2]?.action).toBe("list-events-by-team");
+	});
+
 	test("no collision means no suffix", () => {
 		const ops: NormalizedOperation[] = [
 			{
