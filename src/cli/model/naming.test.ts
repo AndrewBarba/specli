@@ -86,6 +86,103 @@ describe("planOperation", () => {
 });
 
 describe("planOperations collision handling", () => {
+	function priorityOperation(
+		path: string,
+		operationId: string,
+	): NormalizedOperation {
+		return {
+			key: `GET ${path}`,
+			method: "GET",
+			path,
+			operationId,
+			tags: ["Issue priorities"],
+			parameters: [],
+		};
+	}
+
+	const jiraPriorities: NormalizedOperation[] = [
+		priorityOperation("/priority", "getPriorities"),
+		priorityOperation("/priority/search", "searchPriorities"),
+	];
+
+	test("uses full operation IDs when derived names still collide", () => {
+		const actions = planOperations(jiraPriorities).map((op) => op.action);
+		expect(actions).toEqual(["get-priorities", "search-priorities"]);
+	});
+
+	test("preserves an existing command while allocating derived names", () => {
+		const ops: NormalizedOperation[] = [
+			...jiraPriorities,
+			{
+				key: "POST /Priority.ListPriorities",
+				method: "POST",
+				path: "/Priority.ListPriorities",
+				operationId: "Priority.listPriorities",
+				tags: ["Issue priorities"],
+				parameters: [],
+			},
+		];
+
+		const actions = planOperations(ops).map((op) => op.action);
+		expect(actions).toEqual([
+			"get-priorities",
+			"search-priorities",
+			"list-priorities",
+		]);
+	});
+
+	test("does not allocate a command already owned by another operation", () => {
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /deployments/{id}",
+				method: "GET",
+				path: "/deployments/{id}",
+				operationId: "getDeployment",
+				tags: ["deployments"],
+				parameters: [],
+			},
+			{
+				key: "GET /deployments/{id}/events",
+				method: "GET",
+				path: "/deployments/{id}/events",
+				operationId: "getDeploymentEvents",
+				tags: ["deployments"],
+				parameters: [],
+			},
+			{
+				key: "POST /Deployments.GetEvents",
+				method: "POST",
+				path: "/Deployments.GetEvents",
+				operationId: "Deployments.getEvents",
+				tags: ["deployments"],
+				parameters: [],
+			},
+		];
+
+		const actions = planOperations(ops).map((op) => op.action);
+		expect(actions).toEqual(["get-1", "get-deployment-events", "get-events"]);
+	});
+
+	test("uses paths when operation IDs cannot distinguish a collision", () => {
+		const ops: NormalizedOperation[] = [
+			priorityOperation("/priority/active", "getPriorities"),
+			priorityOperation("/priority/archived", "getPriorities"),
+		];
+
+		const actions = planOperations(ops).map((op) => op.action);
+		expect(actions).toEqual(["list-priority-active", "list-priority-archived"]);
+	});
+
+	test("uses a numeric suffix only without semantic distinction", () => {
+		const ops: NormalizedOperation[] = [
+			priorityOperation("/priority/{id}", "getPriorities"),
+			priorityOperation("/priority/{key}", "getPriorities"),
+		];
+
+		const actions = planOperations(ops).map((op) => op.action);
+		expect(actions).toEqual(["get-priorities", "get-priorities-2"]);
+	});
+
 	test("disambiguates colliding creates with meaningful names", () => {
 		const ops: NormalizedOperation[] = [
 			{

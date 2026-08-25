@@ -210,6 +210,50 @@ function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
 	return `${op.action}-${idx}`;
 }
 
+function derivePathIdentityAction(op: PlannedOperation): string {
+	const path = kebabCase(op.path.replace(/\{[^}]+\}/g, ""));
+	return path ? `${op.action}-${path}` : "";
+}
+
+type CollisionCandidate = {
+	operation: PlannedOperation;
+	candidates: {
+		preferred: string;
+		operationId: string;
+		path: string;
+	};
+	action: string;
+};
+
+function claimUniqueActions(
+	candidates: CollisionCandidate[],
+	source: keyof CollisionCandidate["candidates"],
+	allocatedCommands: Set<string>,
+): void {
+	const counts = new Map<string, number>();
+	for (const candidate of candidates) {
+		if (candidate.action) continue;
+		const action = candidate.candidates[source];
+		if (!action) continue;
+		const command = `${candidate.operation.resource}:${action}`;
+		counts.set(command, (counts.get(command) ?? 0) + 1);
+	}
+
+	for (const candidate of candidates) {
+		if (candidate.action) continue;
+		const action = candidate.candidates[source];
+		const command = `${candidate.operation.resource}:${action}`;
+		if (
+			action &&
+			counts.get(command) === 1 &&
+			!allocatedCommands.has(command)
+		) {
+			candidate.action = action;
+			allocatedCommands.add(command);
+		}
+	}
+}
+
 function canonicalizeAction(action: string): string {
 	const a = kebabCase(action);
 
@@ -295,28 +339,65 @@ export function planOperation(op: NormalizedOperation): PlannedOperation {
 export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 	const planned = ops.map(planOperation);
 
-	// Stable collision handling: if resource+action repeats, add a suffix.
 	const counts = new Map<string, number>();
 	for (const op of planned) {
 		const key = `${op.resource}:${op.action}`;
 		counts.set(key, (counts.get(key) ?? 0) + 1);
 	}
+	const allocatedCommands = new Set(
+		[...counts].filter(([, count]) => count === 1).map(([command]) => command),
+	);
 
 	const seen = new Map<string, number>();
-	return planned.map((op) => {
+	const candidates: CollisionCandidate[] = [];
+	for (const op of planned) {
 		const key = `${op.resource}:${op.action}`;
 		const total = counts.get(key) ?? 0;
-		if (total <= 1) return op;
+		if (total <= 1) continue;
 
 		const idx = (seen.get(key) ?? 0) + 1;
 		seen.set(key, idx);
+		candidates.push({
+			operation: op,
+			candidates: {
+				preferred: deriveDisambiguatedAction(op, idx),
+				operationId: kebabCase(op.operationId ?? ""),
+				path: derivePathIdentityAction(op),
+			},
+			action: "",
+		});
+	}
 
-		const disambiguatedAction = deriveDisambiguatedAction(op, idx);
+	// Preserve existing names before falling back to authored and route identity.
+	for (const source of ["preferred", "operationId", "path"] as const) {
+		claimUniqueActions(candidates, source, allocatedCommands);
+	}
 
-		return {
-			...op,
-			action: disambiguatedAction,
-			aliasOf: `${op.resource} ${op.canonicalAction}`,
-		};
+	for (const candidate of candidates) {
+		if (candidate.action) continue;
+		const { operation } = candidate;
+		const preferred = candidate.candidates.preferred;
+		let action = preferred;
+		let suffix = 2;
+		while (allocatedCommands.has(`${operation.resource}:${action}`)) {
+			action = `${preferred}-${suffix}`;
+			suffix++;
+		}
+		candidate.action = action;
+		allocatedCommands.add(`${operation.resource}:${action}`);
+	}
+
+	const actions = new Map(
+		candidates.map(({ operation, action }) => [operation, action]),
+	);
+	return planned.map((op) => {
+		const action = actions.get(op);
+		return action
+			? {
+					...op,
+					action,
+					aliasOf: `${op.resource} ${op.canonicalAction}`,
+				}
+			: op;
 	});
 }
