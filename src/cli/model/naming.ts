@@ -180,7 +180,10 @@ function extractDisambiguator(
  * Derives a disambiguated action name for colliding operations.
  * Tries to create meaningful names like "get-events" instead of "get-get-deployment-events-1".
  */
-function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
+function deriveDisambiguatedAction(
+	op: PlannedOperation,
+	numericSuffix: number,
+): string {
 	if (op.operationId) {
 		const disambiguator = extractDisambiguator(
 			op.operationId,
@@ -207,7 +210,7 @@ function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
 	}
 
 	// Last resort: append numeric suffix
-	return `${op.action}-${idx}`;
+	return `${op.action}-${numericSuffix}`;
 }
 
 function derivePathIdentityAction(op: PlannedOperation): string {
@@ -217,9 +220,9 @@ function derivePathIdentityAction(op: PlannedOperation): string {
 }
 
 type ActionCandidates = {
-	preferred: string;
+	derived: string;
 	operationId: string;
-	path: string;
+	pathIdentity: string;
 };
 
 type CollisionCandidate = {
@@ -228,38 +231,57 @@ type CollisionCandidate = {
 	assignedAction?: string;
 };
 
+type ActionProposal = {
+	candidate: CollisionCandidate;
+	action: string;
+	commandKey: string;
+};
+
+const ACTION_CANDIDATE_ORDER = [
+	"derived",
+	"operationId",
+	"pathIdentity",
+] as const;
+
+function buildCommandKey(resource: string, action: string): string {
+	return `${resource}:${action}`;
+}
+
 /**
- * Assign one fallback tier to unresolved collisions.
+ * Assign the best available action to every colliding operation.
  *
- * Count every proposal before assigning any of them, so a name is used only
- * when it is unique within this tier and has not already been allocated.
+ * Try the existing derived action first, then the authored operation ID, then
+ * the request path. For each option, collect every unresolved proposal before
+ * assigning any. A proposal is accepted only when no other unresolved operation
+ * proposes the same command and the global allocation does not already contain it.
  */
 function assignUniqueActions(
 	candidates: CollisionCandidate[],
-	source: keyof ActionCandidates,
 	allocatedCommands: Set<string>,
 ): void {
-	const unassignedCandidates = candidates.filter(
-		(candidate) => !candidate.assignedAction,
-	);
-	const proposalCounts = new Map<string, number>();
-	for (const candidate of unassignedCandidates) {
-		const action = candidate.actionCandidates[source];
-		if (!action) continue;
-		const command = `${candidate.operation.resource}:${action}`;
-		proposalCounts.set(command, (proposalCounts.get(command) ?? 0) + 1);
-	}
+	for (const source of ACTION_CANDIDATE_ORDER) {
+		const unassignedCandidates = candidates.filter(
+			(candidate) => !candidate.assignedAction,
+		);
+		const proposals: ActionProposal[] = [];
+		const proposalCounts = new Map<string, number>();
 
-	for (const candidate of unassignedCandidates) {
-		const action = candidate.actionCandidates[source];
-		const command = `${candidate.operation.resource}:${action}`;
-		if (
-			action &&
-			proposalCounts.get(command) === 1 &&
-			!allocatedCommands.has(command)
-		) {
-			candidate.assignedAction = action;
-			allocatedCommands.add(command);
+		for (const candidate of unassignedCandidates) {
+			const action = candidate.actionCandidates[source];
+			if (!action) continue;
+			const commandKey = buildCommandKey(candidate.operation.resource, action);
+			proposals.push({ candidate, action, commandKey });
+			proposalCounts.set(commandKey, (proposalCounts.get(commandKey) ?? 0) + 1);
+		}
+
+		for (const proposal of proposals) {
+			const isUniqueAndAvailable =
+				proposalCounts.get(proposal.commandKey) === 1 &&
+				!allocatedCommands.has(proposal.commandKey);
+			if (!isUniqueAndAvailable) continue;
+
+			proposal.candidate.assignedAction = proposal.action;
+			allocatedCommands.add(proposal.commandKey);
 		}
 	}
 }
@@ -352,54 +374,54 @@ export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 	// Count initial commands so only colliding operations are reallocated.
 	const commandCounts = new Map<string, number>();
 	for (const op of planned) {
-		const command = `${op.resource}:${op.action}`;
-		commandCounts.set(command, (commandCounts.get(command) ?? 0) + 1);
+		const commandKey = buildCommandKey(op.resource, op.action);
+		commandCounts.set(commandKey, (commandCounts.get(commandKey) ?? 0) + 1);
 	}
 
 	// Reserve non-colliding commands so fallback names cannot replace them.
 	const allocatedCommands = new Set<string>();
-	for (const [command, count] of commandCounts) {
-		if (count === 1) allocatedCommands.add(command);
+	for (const [commandKey, count] of commandCounts) {
+		if (count === 1) allocatedCommands.add(commandKey);
 	}
 
-	const collisionIndexes = new Map<string, number>();
+	// Number operations within each collision group for numeric fallbacks.
+	const numericSuffixCounts = new Map<string, number>();
 	const collisionCandidates: CollisionCandidate[] = [];
 	for (const op of planned) {
-		const command = `${op.resource}:${op.action}`;
-		const collisionCount = commandCounts.get(command) ?? 0;
+		const commandKey = buildCommandKey(op.resource, op.action);
+		const collisionCount = commandCounts.get(commandKey) ?? 0;
 		if (collisionCount <= 1) continue;
 
-		const index = (collisionIndexes.get(command) ?? 0) + 1;
-		collisionIndexes.set(command, index);
+		const numericSuffix = (numericSuffixCounts.get(commandKey) ?? 0) + 1;
+		numericSuffixCounts.set(commandKey, numericSuffix);
 		collisionCandidates.push({
 			operation: op,
 			actionCandidates: {
-				preferred: deriveDisambiguatedAction(op, index),
+				derived: deriveDisambiguatedAction(op, numericSuffix),
 				operationId: kebabCase(op.operationId ?? ""),
-				path: derivePathIdentityAction(op),
+				pathIdentity: derivePathIdentityAction(op),
 			},
 		});
 	}
 
-	// Assign each operation at the first tier where its name is unique and free.
-	for (const source of ["preferred", "operationId", "path"] as const) {
-		assignUniqueActions(collisionCandidates, source, allocatedCommands);
-	}
+	assignUniqueActions(collisionCandidates, allocatedCommands);
 
 	for (const candidate of collisionCandidates) {
 		if (candidate.assignedAction) continue;
 
 		// None of the meaningful candidates was both unique and available.
 		const { operation } = candidate;
-		const preferred = candidate.actionCandidates.preferred;
-		let action = preferred;
+		const derivedAction = candidate.actionCandidates.derived;
+		let action = derivedAction;
 		let suffix = 2;
-		while (allocatedCommands.has(`${operation.resource}:${action}`)) {
-			action = `${preferred}-${suffix}`;
+		let commandKey = buildCommandKey(operation.resource, action);
+		while (allocatedCommands.has(commandKey)) {
+			action = `${derivedAction}-${suffix}`;
+			commandKey = buildCommandKey(operation.resource, action);
 			suffix++;
 		}
 		candidate.assignedAction = action;
-		allocatedCommands.add(`${operation.resource}:${action}`);
+		allocatedCommands.add(commandKey);
 	}
 
 	const assignedActions = new Map(
