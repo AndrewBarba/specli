@@ -239,6 +239,43 @@ describe("planOperations collision handling", () => {
 		expect(planned[1]?.action).toBe("create");
 	});
 
+	test("numbers colliding operations consecutively", () => {
+		// Only operations that actually fall back to a number consume one, so
+		// the sequence has no gaps. The previous counter incremented once per
+		// group member regardless, which named the third operation "get-3".
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /users/{id}",
+				method: "GET",
+				path: "/users/{id}",
+				operationId: "getUser",
+				tags: ["users"],
+				parameters: [],
+			},
+			{
+				key: "GET /users/{id}/profile",
+				method: "GET",
+				path: "/users/{id}/profile",
+				operationId: "getUser",
+				tags: ["users"],
+				parameters: [],
+			},
+			{
+				key: "GET /users/{id}/user",
+				method: "GET",
+				path: "/users/{id}/user",
+				operationId: "getUser",
+				tags: ["users"],
+				parameters: [],
+			},
+		];
+
+		const planned = planOperations(ops);
+		expect(planned[0]?.action).toBe("get-1");
+		expect(planned[1]?.action).toBe("get-profile");
+		expect(planned[2]?.action).toBe("get-2");
+	});
+
 	test("falls back to path segment when operationId has no extra info", () => {
 		const ops: NormalizedOperation[] = [
 			{
