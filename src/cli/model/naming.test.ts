@@ -153,7 +153,7 @@ describe("planOperations collision handling", () => {
 
 	test("disambiguated names never collide with each other", () => {
 		// Both operationIds reduce to the same disambiguator ("priorities"),
-		// which used to produce two `list-priorities` commands.
+		// so the second operation must take a different name.
 		const ops: NormalizedOperation[] = [
 			{
 				key: "GET /priority",
@@ -241,8 +241,7 @@ describe("planOperations collision handling", () => {
 
 	test("numbers colliding operations consecutively", () => {
 		// Only operations that actually fall back to a number consume one, so
-		// the sequence has no gaps. The previous counter incremented once per
-		// group member regardless, which named the third operation "get-3".
+		// the sequence has no gaps.
 		const ops: NormalizedOperation[] = [
 			{
 				key: "GET /users/{id}",
