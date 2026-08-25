@@ -177,23 +177,22 @@ function extractDisambiguator(
 }
 
 /**
- * Derives a disambiguated action name for colliding operations.
- * Tries to create meaningful names like "get-events" instead of "get-get-deployment-events-1".
+ * Meaningful action candidates for a colliding operation, most specific first:
+ * the distinguishing part of the operationId, then a path segment that the
+ * resource does not already represent.
  */
-function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
+function disambiguationCandidates(op: PlannedOperation): string[] {
+	const candidates: string[] = [];
+
 	if (op.operationId) {
 		const disambiguator = extractDisambiguator(
 			op.operationId,
 			op.action,
 			op.resource,
 		);
-		if (disambiguator) {
-			// Use the disambiguator directly as action: "upload-files", "get-events"
-			return `${op.action}-${disambiguator}`;
-		}
+		if (disambiguator) candidates.push(`${op.action}-${disambiguator}`);
 	}
 
-	// Fallback: try to extract something from the path
 	const segments = getPathSegments(op.path);
 	// Look for the last non-parameter segment that isn't the resource
 	const singularResource = op.resource.replace(/s$/, "");
@@ -202,12 +201,32 @@ function deriveDisambiguatedAction(op: PlannedOperation, idx: number): string {
 		if (!seg || seg.startsWith("{")) continue;
 		const kebabSeg = kebabCase(seg);
 		if (kebabSeg !== op.resource && kebabSeg !== singularResource) {
-			return `${op.action}-${kebabSeg}`;
+			candidates.push(`${op.action}-${kebabSeg}`);
+			break;
 		}
 	}
 
-	// Last resort: append numeric suffix
-	return `${op.action}-${idx}`;
+	return candidates;
+}
+
+/**
+ * Picks an action for a colliding operation that no other command on the same
+ * resource has claimed. Meaningful names are preferred; a numeric suffix is the
+ * always-available fallback.
+ */
+function pickUnclaimedAction(
+	op: PlannedOperation,
+	claimed: ReadonlySet<string>,
+): string {
+	const isFree = (action: string) => !claimed.has(`${op.resource}:${action}`);
+
+	for (const candidate of disambiguationCandidates(op)) {
+		if (isFree(candidate)) return candidate;
+	}
+
+	let suffix = 1;
+	while (!isFree(`${op.action}-${suffix}`)) suffix += 1;
+	return `${op.action}-${suffix}`;
 }
 
 function canonicalizeAction(action: string): string {
@@ -295,27 +314,29 @@ export function planOperation(op: NormalizedOperation): PlannedOperation {
 export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 	const planned = ops.map(planOperation);
 
-	// Stable collision handling: if resource+action repeats, add a suffix.
 	const counts = new Map<string, number>();
 	for (const op of planned) {
 		const key = `${op.resource}:${op.action}`;
 		counts.set(key, (counts.get(key) ?? 0) + 1);
 	}
 
-	const seen = new Map<string, number>();
+	// Operations with an already-unique name keep it; colliding ones then pick a
+	// name that nothing else has claimed.
+	const claimed = new Set<string>();
+	for (const [key, count] of counts) {
+		if (count === 1) claimed.add(key);
+	}
+
 	return planned.map((op) => {
 		const key = `${op.resource}:${op.action}`;
-		const total = counts.get(key) ?? 0;
-		if (total <= 1) return op;
+		if (counts.get(key) === 1) return op;
 
-		const idx = (seen.get(key) ?? 0) + 1;
-		seen.set(key, idx);
-
-		const disambiguatedAction = deriveDisambiguatedAction(op, idx);
+		const action = pickUnclaimedAction(op, claimed);
+		claimed.add(`${op.resource}:${action}`);
 
 		return {
 			...op,
-			action: disambiguatedAction,
+			action,
 			aliasOf: `${op.resource} ${op.canonicalAction}`,
 		};
 	});

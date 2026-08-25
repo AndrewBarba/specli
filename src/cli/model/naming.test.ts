@@ -151,6 +151,69 @@ describe("planOperations collision handling", () => {
 		expect(planned[2]?.action).toBe("get-files");
 	});
 
+	test("disambiguated names never collide with each other", () => {
+		// Both operationIds reduce to the same disambiguator ("priorities"),
+		// so the second operation must take a different name.
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /priority",
+				method: "GET",
+				path: "/priority",
+				operationId: "getPriorities",
+				tags: ["Issue priorities"],
+				parameters: [],
+			},
+			{
+				key: "GET /priority/search",
+				method: "GET",
+				path: "/priority/search",
+				operationId: "searchPriorities",
+				tags: ["Issue priorities"],
+				parameters: [],
+			},
+		];
+
+		const planned = planOperations(ops);
+		expect(planned[0]?.action).toBe("list-priorities");
+		expect(planned[1]?.action).toBe("list-search");
+	});
+
+	test("disambiguated names never collide with an unrelated command", () => {
+		// `list-events` is already taken by a non-colliding operation, so the
+		// colliding one must fall through to another candidate.
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /events",
+				method: "GET",
+				path: "/events",
+				operationId: "listProjectEvents",
+				tags: ["projects"],
+				parameters: [],
+			},
+			{
+				key: "GET /projects",
+				method: "GET",
+				path: "/projects",
+				operationId: "listProjects",
+				tags: ["projects"],
+				parameters: [],
+			},
+			{
+				key: "GET /teams/events",
+				method: "GET",
+				path: "/teams/events",
+				operationId: "listProjectEventsByTeam",
+				tags: ["projects"],
+				parameters: [],
+			},
+		];
+
+		const planned = planOperations(ops);
+		expect(planned[0]?.action).toBe("list-events");
+		expect(planned[1]?.action).toBe("list-1");
+		expect(planned[2]?.action).toBe("list-events-by-team");
+	});
+
 	test("no collision means no suffix", () => {
 		const ops: NormalizedOperation[] = [
 			{
@@ -174,6 +237,42 @@ describe("planOperations collision handling", () => {
 		const planned = planOperations(ops);
 		expect(planned[0]?.action).toBe("list");
 		expect(planned[1]?.action).toBe("create");
+	});
+
+	test("numbers colliding operations consecutively", () => {
+		// Only operations that actually fall back to a number consume one, so
+		// the sequence has no gaps.
+		const ops: NormalizedOperation[] = [
+			{
+				key: "GET /users/{id}",
+				method: "GET",
+				path: "/users/{id}",
+				operationId: "getUser",
+				tags: ["users"],
+				parameters: [],
+			},
+			{
+				key: "GET /users/{id}/profile",
+				method: "GET",
+				path: "/users/{id}/profile",
+				operationId: "getUser",
+				tags: ["users"],
+				parameters: [],
+			},
+			{
+				key: "GET /users/{id}/user",
+				method: "GET",
+				path: "/users/{id}/user",
+				operationId: "getUser",
+				tags: ["users"],
+				parameters: [],
+			},
+		];
+
+		const planned = planOperations(ops);
+		expect(planned[0]?.action).toBe("get-1");
+		expect(planned[1]?.action).toBe("get-profile");
+		expect(planned[2]?.action).toBe("get-2");
 	});
 
 	test("falls back to path segment when operationId has no extra info", () => {
