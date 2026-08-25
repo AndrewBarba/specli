@@ -176,14 +176,8 @@ function extractDisambiguator(
 	return name;
 }
 
-/**
- * Derives a disambiguated action name for colliding operations.
- * Tries to create meaningful names like "get-events" instead of "get-get-deployment-events-1".
- */
-function deriveDisambiguatedAction(
-	op: PlannedOperation,
-	numericSuffix: number,
-): string {
+/** Derive a meaningful action name without adding a numeric suffix. */
+function deriveSemanticAction(op: PlannedOperation): string | undefined {
 	if (op.operationId) {
 		const disambiguator = extractDisambiguator(
 			op.operationId,
@@ -209,79 +203,82 @@ function deriveDisambiguatedAction(
 		}
 	}
 
-	// Last resort: append numeric suffix
-	return `${op.action}-${numericSuffix}`;
+	return undefined;
 }
 
-function derivePathIdentityAction(op: PlannedOperation): string {
+function deriveOperationIdAction(op: PlannedOperation): string | undefined {
+	return op.operationId ? kebabCase(op.operationId) : undefined;
+}
+
+function derivePathIdentityAction(op: PlannedOperation): string | undefined {
 	const re = /\{[^}]+\}/g;
 	const path = kebabCase(op.path.replace(re, ""));
-	return path ? `${op.action}-${path}` : "";
+	return path ? `${op.action}-${path}` : undefined;
 }
-
-type ActionCandidates = {
-	derived: string;
-	operationId: string;
-	pathIdentity: string;
-};
 
 type CollisionCandidate = {
 	operation: PlannedOperation;
-	actionCandidates: ActionCandidates;
+	semanticAction: string | undefined;
+	fallbackBaseAction: string;
 	assignedAction?: string;
 };
 
-type ActionProposal = {
+type CandidateCommand = {
 	candidate: CollisionCandidate;
 	action: string;
 	commandKey: string;
 };
 
-const ACTION_CANDIDATE_ORDER = [
-	"derived",
-	"operationId",
-	"pathIdentity",
-] as const;
+type ActionOption = (candidate: CollisionCandidate) => string | undefined;
+
+const MEANINGFUL_ACTION_OPTIONS: ActionOption[] = [
+	(candidate) => candidate.semanticAction,
+	(candidate) => deriveOperationIdAction(candidate.operation),
+	(candidate) => derivePathIdentityAction(candidate.operation),
+];
 
 function buildCommandKey(resource: string, action: string): string {
 	return `${resource}:${action}`;
 }
 
 /**
- * Assign the best available action to every colliding operation.
+ * Assign the best available meaningful action to every colliding operation.
  *
- * Try the existing derived action first, then the authored operation ID, then
- * the request path. For each option, collect every unresolved proposal before
- * assigning any. A proposal is accepted only when no other unresolved operation
- * proposes the same command and the global allocation does not already contain it.
+ * Try a short action derived from the operation ID or path first, then the full
+ * operation ID, then the full request path. For each option, calculate every
+ * unassigned operation's command before assigning any. Use a command only when
+ * exactly one operation would receive it and it is not already in use.
  */
-function assignUniqueActions(
+function assignMeaningfulActions(
 	candidates: CollisionCandidate[],
 	allocatedCommands: Set<string>,
 ): void {
-	for (const source of ACTION_CANDIDATE_ORDER) {
+	for (const getAction of MEANINGFUL_ACTION_OPTIONS) {
 		const unassignedCandidates = candidates.filter(
 			(candidate) => !candidate.assignedAction,
 		);
-		const proposals: ActionProposal[] = [];
-		const proposalCounts = new Map<string, number>();
+		const candidateCommands: CandidateCommand[] = [];
+		const candidateCommandCounts = new Map<string, number>();
 
 		for (const candidate of unassignedCandidates) {
-			const action = candidate.actionCandidates[source];
+			const action = getAction(candidate);
 			if (!action) continue;
 			const commandKey = buildCommandKey(candidate.operation.resource, action);
-			proposals.push({ candidate, action, commandKey });
-			proposalCounts.set(commandKey, (proposalCounts.get(commandKey) ?? 0) + 1);
+			candidateCommands.push({ candidate, action, commandKey });
+			candidateCommandCounts.set(
+				commandKey,
+				(candidateCommandCounts.get(commandKey) ?? 0) + 1,
+			);
 		}
 
-		for (const proposal of proposals) {
+		for (const candidateCommand of candidateCommands) {
 			const isUniqueAndAvailable =
-				proposalCounts.get(proposal.commandKey) === 1 &&
-				!allocatedCommands.has(proposal.commandKey);
+				candidateCommandCounts.get(candidateCommand.commandKey) === 1 &&
+				!allocatedCommands.has(candidateCommand.commandKey);
 			if (!isUniqueAndAvailable) continue;
 
-			proposal.candidate.assignedAction = proposal.action;
-			allocatedCommands.add(proposal.commandKey);
+			candidateCommand.candidate.assignedAction = candidateCommand.action;
+			allocatedCommands.add(candidateCommand.commandKey);
 		}
 	}
 }
@@ -394,29 +391,27 @@ export function planOperations(ops: NormalizedOperation[]): PlannedOperation[] {
 
 		const numericSuffix = (numericSuffixCounts.get(commandKey) ?? 0) + 1;
 		numericSuffixCounts.set(commandKey, numericSuffix);
+		const semanticAction = deriveSemanticAction(op);
 		collisionCandidates.push({
 			operation: op,
-			actionCandidates: {
-				derived: deriveDisambiguatedAction(op, numericSuffix),
-				operationId: kebabCase(op.operationId ?? ""),
-				pathIdentity: derivePathIdentityAction(op),
-			},
+			semanticAction,
+			fallbackBaseAction: semanticAction ?? `${op.action}-${numericSuffix}`,
 		});
 	}
 
-	assignUniqueActions(collisionCandidates, allocatedCommands);
+	assignMeaningfulActions(collisionCandidates, allocatedCommands);
 
 	for (const candidate of collisionCandidates) {
 		if (candidate.assignedAction) continue;
 
-		// None of the meaningful candidates was both unique and available.
+		// Numeric suffixes are the last resort after every meaningful option fails.
 		const { operation } = candidate;
-		const derivedAction = candidate.actionCandidates.derived;
-		let action = derivedAction;
+		const { fallbackBaseAction } = candidate;
+		let action = fallbackBaseAction;
 		let suffix = 2;
 		let commandKey = buildCommandKey(operation.resource, action);
 		while (allocatedCommands.has(commandKey)) {
-			action = `${derivedAction}-${suffix}`;
+			action = `${fallbackBaseAction}-${suffix}`;
 			commandKey = buildCommandKey(operation.resource, action);
 			suffix++;
 		}

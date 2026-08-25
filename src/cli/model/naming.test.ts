@@ -160,7 +160,11 @@ describe("planOperations collision handling", () => {
 		];
 
 		const actions = planOperations(ops).map((op) => op.action);
-		expect(actions).toEqual(["get-1", "get-deployment-events", "get-events"]);
+		expect(actions).toEqual([
+			"get-deployment",
+			"get-deployment-events",
+			"get-events",
+		]);
 	});
 
 	test("uses paths when operation IDs cannot distinguish a collision", () => {
@@ -210,7 +214,7 @@ describe("planOperations collision handling", () => {
 		expect(planned[1]?.action).toBe("create-upload-files");
 	});
 
-	test("disambiguates colliding gets with meaningful names from operationId", () => {
+	test("uses meaningful operation IDs before numeric suffixes", () => {
 		const ops: NormalizedOperation[] = [
 			{
 				key: "GET /deployments/{idOrUrl}",
@@ -239,9 +243,8 @@ describe("planOperations collision handling", () => {
 		];
 
 		const planned = planOperations(ops);
-		// Should extract meaningful disambiguators from operationId and path
-		// First one has no extra info, falls back to numeric suffix
-		expect(planned[0]?.action).toBe("get-1");
+		// The full operation ID is preferable when no shorter name can be derived.
+		expect(planned[0]?.action).toBe("get-deployment");
 		// Second extracts "events" from operationId
 		expect(planned[1]?.action).toBe("get-events");
 		// Third extracts "files" from operationId (list -> get canonicalization doesn't affect disambiguator)
@@ -273,7 +276,7 @@ describe("planOperations collision handling", () => {
 		expect(planned[1]?.action).toBe("create");
 	});
 
-	test("falls back to path segment when operationId has no extra info", () => {
+	test("uses operation IDs and paths before numeric suffixes", () => {
 		const ops: NormalizedOperation[] = [
 			{
 				key: "GET /users/{id}",
@@ -294,7 +297,7 @@ describe("planOperations collision handling", () => {
 		];
 
 		const planned = planOperations(ops);
-		expect(planned[0]?.action).toBe("get-1");
+		expect(planned[0]?.action).toBe("get-user");
 		expect(planned[1]?.action).toBe("get-profile");
 	});
 });
